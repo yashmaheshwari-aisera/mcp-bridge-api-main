@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: mcp-bridge
+    env: docker
+    plan: free
+    branch: main
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: MCP_SERVER_URL
+        value: https://mcp-proxy.yashmahe2021.workers.dev/mcp
+    healthCheckPath: /health 
