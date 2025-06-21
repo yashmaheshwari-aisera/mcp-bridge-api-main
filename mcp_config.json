@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "math-server": {
+      "type": "http",
+      "url": "https://mcp-proxy.yashmahe2021.workers.dev/mcp",
+      "description": "Cloudflare-hosted math MCP server with mathematical functions"
+    }
+  }
+}

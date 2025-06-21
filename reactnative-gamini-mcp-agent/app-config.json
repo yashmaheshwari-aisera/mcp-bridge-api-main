@@ -1,0 +1,7 @@
+{
+  "geminiApiKey": "",
+  "mcpBridgeUrl": "http://localhost:3000",
+  "geminiModelName": "gemini-1.5-flash",
+  "setupComplete": false,
+  "note": "API key should be configured through environment variables or user settings"
+}
