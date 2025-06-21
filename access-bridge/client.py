@@ -9,8 +9,8 @@ import json
 import os
 from typing import Dict, Any, Optional
 
-# Configuration - Update this with your deployed Render URL
-BASE_URL = os.getenv('MCP_BRIDGE_URL', 'http://localhost:3000')
+# Configuration - Your deployed Render URL
+BASE_URL = os.getenv('MCP_BRIDGE_URL', 'https://mcp-bridge-api-main.onrender.com')
 
 class MCPBridgeClient:
     def __init__(self, base_url: str = BASE_URL):
@@ -29,23 +29,16 @@ class MCPBridgeClient:
         response.raise_for_status()
         return response.json()
     
-    def list_tools(self, server_name: Optional[str] = None) -> Dict[str, Any]:
-        """List available tools"""
-        url = f"{self.base_url}/tools"
-        if server_name:
-            url += f"?server={server_name}"
-        response = self.session.get(url)
+    def list_tools(self, server_id: str) -> Dict[str, Any]:
+        """List available tools for a specific server"""
+        response = self.session.get(f"{self.base_url}/servers/{server_id}/tools")
         response.raise_for_status()
         return response.json()
     
-    def execute_tool(self, tool_name: str, arguments: Dict[str, Any], server_name: Optional[str] = None) -> Dict[str, Any]:
-        """Execute a tool with given arguments"""
-        url = f"{self.base_url}/tools/{tool_name}"
-        if server_name:
-            url += f"?server={server_name}"
-        
+    def execute_tool(self, server_id: str, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute a tool with given arguments on a specific server"""
         response = self.session.post(
-            url,
+            f"{self.base_url}/servers/{server_id}/tools/{tool_name}",
             json=arguments,
             headers={'Content-Type': 'application/json'}
         )
@@ -55,15 +48,9 @@ class MCPBridgeClient:
 def main():
     """Demo the MCP Bridge API client"""
     
-    # Check if we have a custom URL
-    if BASE_URL == 'http://localhost:3000':
-        print("🔧 Using local development server")
-        print("💡 To use deployed service, set environment variable:")
-        print("   export MCP_BRIDGE_URL=https://your-render-url.onrender.com")
-        print()
-    else:
-        print(f"🌐 Using deployed service: {BASE_URL}")
-        print()
+    print(f"🌐 Using deployed MCP Bridge: {BASE_URL}")
+    print("💡 To use a different URL, set: export MCP_BRIDGE_URL=https://your-url.com")
+    print()
     
     client = MCPBridgeClient()
     
@@ -78,15 +65,27 @@ def main():
         
         # 2. List Servers
         print("2️⃣ Connected Servers...")
-        servers = client.list_servers()
-        for server in servers['servers']:
+        servers_response = client.list_servers()
+        servers = servers_response['servers']
+        
+        if not servers:
+            print("❌ No servers connected")
+            return
+            
+        for server in servers:
             print(f"📡 {server['id']} - {server['initialization_state']} (Risk: {server['risk_level']})")
+        
+        # Use the first server for testing
+        server_id = servers[0]['id']
+        print(f"\n🎯 Using server: {server_id}")
         print()
         
         # 3. List Tools
         print("3️⃣ Available Tools...")
-        tools = client.list_tools()
-        for tool in tools['tools']:
+        tools_response = client.list_tools(server_id)
+        tools = tools_response['tools']
+        
+        for tool in tools:
             print(f"🔧 {tool['name']}: {tool['description']}")
         print()
         
@@ -94,23 +93,29 @@ def main():
         print("4️⃣ Testing Math Operations...")
         
         # Addition
-        result = client.execute_tool('add', {'a': 15, 'b': 27})
-        print(f"➕ 15 + 27 = {result['content'][0]['text']}")
+        result = client.execute_tool(server_id, 'add', {'a': 15, 'b': 27})
+        add_result = json.loads(result['content'][0]['text'])
+        print(f"➕ 15 + 27 = {add_result['result']}")
         
         # Subtraction
-        result = client.execute_tool('subtract', {'a': 50, 'b': 23})
-        print(f"➖ 50 - 23 = {result['content'][0]['text']}")
+        result = client.execute_tool(server_id, 'subtract', {'a': 50, 'b': 23})
+        sub_result = json.loads(result['content'][0]['text'])
+        print(f"➖ 50 - 23 = {sub_result['result']}")
         
         # Multiplication
-        result = client.execute_tool('multiply', {'a': 8, 'b': 7})
-        print(f"✖️  8 × 7 = {result['content'][0]['text']}")
+        result = client.execute_tool(server_id, 'multiply', {'a': 8, 'b': 7})
+        mul_result = json.loads(result['content'][0]['text'])
+        print(f"✖️  8 × 7 = {mul_result['result']}")
         
         # Division
-        result = client.execute_tool('divide', {'a': 100, 'b': 4})
-        print(f"➗ 100 ÷ 4 = {result['content'][0]['text']}")
+        result = client.execute_tool(server_id, 'divide', {'a': 100, 'b': 4})
+        div_result = json.loads(result['content'][0]['text'])
+        print(f"➗ 100 ÷ 4 = {div_result['result']}")
         
         print()
         print("🎉 All tests completed successfully!")
+        print(f"🚀 Your MCP Bridge at {BASE_URL} is working perfectly!")
+        print("📊 The bridge successfully connects to the MCP server and executes tools!")
         
     except requests.exceptions.ConnectionError:
         print(f"❌ Could not connect to {BASE_URL}")
@@ -118,6 +123,9 @@ def main():
     except requests.exceptions.HTTPError as e:
         print(f"❌ HTTP Error: {e}")
         print(f"Response: {e.response.text if e.response else 'No response'}")
+    except json.JSONDecodeError as e:
+        print(f"❌ JSON parsing error: {e}")
+        print("💡 The response format might have changed")
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
 
