@@ -708,7 +708,7 @@ async function startServer(serverId, config) {
         serverInitializationState.set(serverId, 'timeout');
         serverProcess.stdout.removeListener('data', initializationHandler);
         reject(new Error(`Server ${serverId} initialization timed out`));
-      }, 30000); // 30 second timeout for initialization
+              }, 30000); // 30 second timeout for initialization
       
       // Wait a moment for the process to start, then send initialize request
       setTimeout(() => {
@@ -995,6 +995,265 @@ async function sendMCPRequest(serverId, method, params = {}, confirmationId = nu
     };
   });
 }
+
+// Job Queue System for Async Operations
+console.log('Setting up job queue system');
+
+// Job storage - In-memory Map (can be upgraded to Redis later)
+const jobs = new Map();
+
+// Crypto for secure token generation
+const crypto = require('crypto');
+
+// Generate 15-digit alphanumeric job ID
+function generateJobId() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < 15; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+// Generate secure bearer token
+function generateBearerToken() {
+  return 'tok_' + crypto.randomBytes(32).toString('hex');
+}
+
+// Enhanced sendMCPRequest for background jobs (no timeout)
+async function sendMCPRequestForJob(serverId, method, params = {}) {
+  const serverInfo = serverProcesses.get(serverId);
+  
+  if (!serverInfo) {
+    throw new Error(`Server '${serverId}' not found or not connected`);
+  }
+  
+  // Handle HTTP servers
+  if (serverInfo.type === 'http') {
+    try {
+      console.log(`[JOB] Sending HTTP request to ${serverId}: ${method}`, params);
+      const response = await serverInfo.sendRequest(method, params);
+      
+      if (response.error) {
+        throw new Error(response.error.message || 'Unknown error from HTTP server');
+      }
+      
+      return response.result || response;
+    } catch (error) {
+      console.error(`[JOB] Error sending HTTP request to ${serverId}:`, error);
+      throw error;
+    }
+  }
+  
+  // Handle SSE servers
+  if (serverInfo.type === 'sse') {
+    try {
+      console.log(`[JOB] Sending SSE request to ${serverId}: ${method}`, params);
+      const response = await serverInfo.sendRequest(method, params);
+      
+      if (response.error) {
+        throw new Error(response.error.message || 'Unknown error from SSE server');
+      }
+      
+      return response.result || response;
+    } catch (error) {
+      console.error(`[JOB] Error sending SSE request to ${serverId}:`, error);
+      throw error;
+    }
+  }
+  
+  // Handle regular MCP servers with NO TIMEOUT for background jobs
+  return new Promise((resolve, reject) => {
+    // Check initialization state
+    const initState = serverInitializationState.get(serverId);
+    if (initState !== 'initialized') {
+      const stateMessage = {
+        'starting': 'Server is still starting up',
+        'timeout': 'Server initialization timed out',
+        'error': 'Server initialization failed'
+      }[initState] || 'Server is not properly initialized';
+      
+      return reject(new Error(`${stateMessage}. Current state: ${initState}`));
+    }
+    
+    const { process: serverProcess } = serverInfo;
+    const requestId = uuidv4();
+    
+    const request = {
+      jsonrpc: "2.0",
+      id: requestId,
+      method,
+      params
+    };
+    
+    console.log(`[JOB] Sending request to ${serverId}: ${method}`, params);
+    
+    // Set up response handler (NO TIMEOUT for background jobs)
+    const messageHandler = (data) => {
+      try {
+        const responseText = data.toString();
+        let parsedResponse = null;
+        let jsonError = null;
+        
+        try {
+          parsedResponse = JSON.parse(responseText);
+        } catch (e) {
+          const lines = responseText.split('\n').filter(line => line.trim());
+          
+          for (const line of lines) {
+            try {
+              const lineResponse = JSON.parse(line);
+              if (lineResponse.id === requestId) {
+                parsedResponse = lineResponse;
+                break;
+              }
+            } catch (lineError) {
+              jsonError = lineError;
+              console.error(`[JOB] Error parsing JSON line from ${serverId}:`, lineError);
+            }
+          }
+        }
+            
+        if (parsedResponse && parsedResponse.id === requestId) {
+          console.log(`[JOB] Received response from ${serverId} for request ${requestId}`);
+          
+          // Remove handler after response is received
+          serverProcess.stdout.removeListener('data', messageHandler);
+          
+          if (parsedResponse.error) {
+            return reject(new Error(parsedResponse.error.message || 'Unknown error'));
+          }
+          
+          return resolve(parsedResponse.result);
+        } else if (jsonError) {
+          console.error(`[JOB] Failed to parse JSON response from ${serverId}`);
+          serverProcess.stdout.removeListener('data', messageHandler);
+          return reject(new Error(`Invalid response format from MCP server: ${jsonError.message}`));
+        }
+      } catch (error) {
+        console.error(`[JOB] Error processing response from ${serverId}:`, error);
+        serverProcess.stdout.removeListener('data', messageHandler);
+        return reject(new Error(`Error processing response: ${error.message}`));
+      }
+    };
+    
+    // Add response handler (NO TIMEOUT)
+    serverProcess.stdout.on('data', messageHandler);
+    
+    // Send the request
+    try {
+      serverProcess.stdin.write(JSON.stringify(request) + '\n');
+    } catch (error) {
+      serverProcess.stdout.removeListener('data', messageHandler);
+      reject(new Error(`Failed to send request to ${serverId}: ${error.message}`));
+      return;
+    }
+    
+    // Handle error case
+    const errorHandler = (error) => {
+      serverProcess.stdout.removeListener('data', messageHandler);
+      serverProcess.removeListener('error', errorHandler);
+      reject(error);
+    };
+    
+    serverProcess.once('error', errorHandler);
+  });
+}
+
+// Background job processor
+async function processJobInBackground(job_id) {
+  const job = jobs.get(job_id);
+  if (!job) {
+    console.error(`[JOB ${job_id}] Job not found`);
+    return;
+  }
+  
+  console.log(`[JOB ${job_id}] Starting background processing for tool: ${job.tool_name}`);
+  
+  try {
+    // Update status to processing
+    job.status = 'PROCESSING';
+    job.started_at = new Date().toISOString();
+    jobs.set(job_id, job);
+    
+    let result;
+    
+    // If serverId is provided, use specific server
+    if (job.server_id) {
+      if (!serverProcesses.has(job.server_id)) {
+        throw new Error(`Server '${job.server_id}' not found or not connected`);
+      }
+      
+      result = await sendMCPRequestForJob(job.server_id, 'tools/call', {
+        name: job.tool_name,
+        arguments: job.parameters
+      });
+    } else {
+      // Auto-discover server that has this tool
+      let foundServer = null;
+      
+      for (const [serverId, serverInfo] of serverProcesses) {
+        try {
+          const tools = await sendMCPRequestForJob(serverId, 'tools/list');
+          if (tools && tools.tools && tools.tools.some(t => t.name === job.tool_name)) {
+            foundServer = serverId;
+            break;
+          }
+        } catch (error) {
+          console.warn(`[JOB ${job_id}] Could not check tools for server ${serverId}:`, error.message);
+        }
+      }
+      
+      if (!foundServer) {
+        throw new Error(`Tool '${job.tool_name}' not found on any connected server`);
+      }
+      
+      console.log(`[JOB ${job_id}] Found tool '${job.tool_name}' on server '${foundServer}'`);
+      
+      result = await sendMCPRequestForJob(foundServer, 'tools/call', {
+        name: job.tool_name,
+        arguments: job.parameters
+      });
+    }
+    
+    // Store successful result
+    job.status = 'COMPLETED';
+    job.result = result;
+    job.completed_at = new Date().toISOString();
+    jobs.set(job_id, job);
+    
+    console.log(`[JOB ${job_id}] Completed successfully`);
+    
+  } catch (error) {
+    // Store error result
+    job.status = 'FAILED';
+    job.error = error.message;
+    job.completed_at = new Date().toISOString();
+    jobs.set(job_id, job);
+    
+    console.error(`[JOB ${job_id}] Failed:`, error.message);
+  }
+}
+
+// Job cleanup - remove expired jobs
+function cleanupExpiredJobs() {
+  const now = new Date();
+  let cleanedCount = 0;
+  
+  for (const [job_id, job] of jobs) {
+    if (new Date(job.expires_at) < now) {
+      jobs.delete(job_id);
+      cleanedCount++;
+    }
+  }
+  
+  if (cleanedCount > 0) {
+    console.log(`[CLEANUP] Removed ${cleanedCount} expired jobs`);
+  }
+}
+
+// Run cleanup every 10 minutes
+setInterval(cleanupExpiredJobs, 10 * 60 * 1000);
 
 // API Routes
 console.log('Setting up API routes');
@@ -1889,6 +2148,216 @@ function generateArgumentDocumentation(argumentsArray) {
   
   return doc;
 }
+
+// ===== JOB QUEUE ENDPOINTS =====
+
+// Job submission endpoint - Start async job
+app.post('/tool/execute', async (req, res) => {
+  console.log('POST /tool/execute', req.body);
+  
+  try {
+    const { tool_name, server_id, ...parameters } = req.body;
+    
+    if (!tool_name) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required field: tool_name'
+      });
+    }
+    
+    // Generate job identifiers
+    const job_id = generateJobId();
+    const bearer_token = generateBearerToken();
+    
+    // Create job record
+    const job = {
+      job_id,
+      bearer_token,
+      status: 'QUEUED',
+      tool_name,
+      server_id: server_id || null, // Optional specific server
+      parameters,
+      result: null,
+      error: null,
+      created_at: new Date().toISOString(),
+      started_at: null,
+      completed_at: null,
+      expires_at: new Date(Date.now() + 24*60*60*1000).toISOString() // 24 hour TTL
+    };
+    
+    // Store job
+    jobs.set(job_id, job);
+    
+    console.log(`[JOB ${job_id}] Job queued for tool: ${tool_name}`);
+    
+    // Start background processing (non-blocking)
+    setImmediate(() => processJobInBackground(job_id));
+    
+    // Return immediate response
+    res.json({
+      success: true,
+      message: 'Job queued successfully',
+      job_id: job_id,
+      result_location: `/results/${job_id}`,
+      bearer_token: bearer_token,
+      status: 'QUEUED',
+      tool_name: tool_name,
+      estimated_completion: new Date(Date.now() + 10*60*1000).toISOString(), // 10 min estimate
+      created_at: job.created_at,
+      expires_at: job.expires_at
+    });
+    
+  } catch (error) {
+    console.error('Error queuing job:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to queue job',
+      message: error.message
+    });
+  }
+});
+
+// Result polling endpoint - Check job status and get results
+app.post('/results/:job_id', (req, res) => {
+  const { job_id } = req.params;
+  const authHeader = req.headers.authorization;
+  
+  console.log(`POST /results/${job_id}`);
+  
+  // Validate bearer token format
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({
+      success: false,
+      error: 'Missing or invalid Authorization header',
+      message: 'Use: Authorization: Bearer {token}'
+    });
+  }
+  
+  const provided_token = authHeader.substring(7); // Remove 'Bearer '
+  const job = jobs.get(job_id);
+  
+  // Validate job exists
+  if (!job) {
+    return res.status(404).json({
+      success: false,
+      error: 'Job not found',
+      message: 'Invalid job ID or job has expired'
+    });
+  }
+  
+  // Validate bearer token
+  if (job.bearer_token !== provided_token) {
+    return res.status(401).json({
+      success: false,
+      error: 'Invalid bearer token',
+      message: 'Token does not match job credentials'
+    });
+  }
+  
+  // Check if job expired
+  if (new Date() > new Date(job.expires_at)) {
+    jobs.delete(job_id); // Clean up expired job
+    return res.status(410).json({
+      success: false,
+      error: 'Job expired',
+      message: 'Job results are no longer available'
+    });
+  }
+  
+  // Return appropriate response based on status
+  switch (job.status) {
+    case 'QUEUED':
+      return res.json({
+        success: false,
+        status: 'QUEUED',
+        message: 'Job is queued and waiting to start',
+        progress: 'Waiting for processing slot...',
+        retry_after: 10,
+        job_id: job.job_id,
+        tool_name: job.tool_name,
+        created_at: job.created_at
+      });
+      
+    case 'PROCESSING':
+      return res.json({
+        success: false,
+        status: 'PROCESSING',
+        message: 'Job is currently running',
+        progress: 'Executing MCP operation...',
+        retry_after: 10,
+        job_id: job.job_id,
+        tool_name: job.tool_name,
+        created_at: job.created_at,
+        started_at: job.started_at
+      });
+      
+    case 'COMPLETED':
+      const execution_time = job.completed_at && job.started_at ? 
+        Math.round((new Date(job.completed_at) - new Date(job.started_at)) / 1000) : null;
+        
+      return res.json({
+        success: true,
+        status: 'COMPLETED',
+        result: job.result,
+        job_id: job.job_id,
+        tool_name: job.tool_name,
+        created_at: job.created_at,
+        started_at: job.started_at,
+        completed_at: job.completed_at,
+        execution_time_seconds: execution_time
+      });
+      
+    case 'FAILED': 
+      return res.status(500).json({
+        success: false,
+        status: 'FAILED',
+        error: job.error,
+        job_id: job.job_id,
+        tool_name: job.tool_name,
+        created_at: job.created_at,
+        started_at: job.started_at,
+        completed_at: job.completed_at,
+        message: 'Job execution failed'
+      });
+      
+    default:
+      return res.status(500).json({
+        success: false,
+        error: 'Unknown job status',
+        status: job.status,
+        job_id: job.job_id
+      });
+  }
+});
+
+// Alternative GET endpoint for result polling (for compatibility)
+app.get('/results/:job_id', (req, res) => {
+  // Redirect to POST endpoint for consistency
+  req.method = 'POST';
+  app.handle(req, res);
+});
+
+// Job status endpoint - List all jobs (optional admin endpoint)
+app.get('/jobs', (req, res) => {
+  console.log('GET /jobs');
+  
+  const jobList = Array.from(jobs.values()).map(job => ({
+    job_id: job.job_id,
+    status: job.status,
+    tool_name: job.tool_name,
+    server_id: job.server_id,
+    created_at: job.created_at,
+    started_at: job.started_at,
+    completed_at: job.completed_at,
+    expires_at: job.expires_at
+    // Note: bearer_token is intentionally excluded for security
+  }));
+  
+  res.json({
+    total_jobs: jobList.length,
+    jobs: jobList
+  });
+});
 
 // Test endpoint for long-running operations
 app.post('/test/timeout/:minutes', (req, res) => {
