@@ -1374,6 +1374,37 @@ app.post('/servers/:serverId/prompts/:promptName', async (req, res) => {
   }
 });
 
+// Test endpoint for long-running operations
+app.post('/test/timeout/:minutes', (req, res) => {
+  const minutes = parseInt(req.params.minutes);
+  const maxMinutes = 95; // Stay under 100 minute limit
+  
+  if (isNaN(minutes) || minutes < 1 || minutes > maxMinutes) {
+    return res.status(400).json({ 
+      error: `Invalid minutes. Must be between 1 and ${maxMinutes}` 
+    });
+  }
+  
+  const startTime = Date.now();
+  const durationMs = minutes * 60 * 1000;
+  
+  console.log(`Starting ${minutes}-minute timeout test...`);
+  
+  setTimeout(() => {
+    const actualDuration = Date.now() - startTime;
+    console.log(`Timeout test completed after ${actualDuration}ms`);
+    
+    res.json({
+      status: 'completed',
+      requested_duration_minutes: minutes,
+      actual_duration_ms: actualDuration,
+      actual_duration_minutes: Math.round(actualDuration / 60000 * 100) / 100,
+      message: `Successfully completed ${minutes}-minute timeout test`,
+      timestamp: new Date().toISOString()
+    });
+  }, durationMs);
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   console.log('GET /health');
