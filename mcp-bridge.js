@@ -218,7 +218,7 @@ async function startHTTPServer(serverId, config) {
               headers: {
                 'Content-Type': 'application/json'
               },
-              timeout: 10000
+              timeout: 30000
             });
             
             return response.data;
@@ -259,7 +259,7 @@ async function startHTTPServer(serverId, config) {
             headers: {
               'Content-Type': 'application/json'
             },
-            timeout: 10000
+            timeout: 30000
           });
           
           if (response.data && (response.data.result || response.data.id)) {
@@ -1407,12 +1407,22 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Start the server
-app.listen(PORT, async () => {
+// Start the server with extended timeouts
+const server = app.listen(PORT, async () => {
   console.log(`MCP Bridge server running on port ${PORT}`);
   await initServers();
   console.log('Ready to handle requests');
 });
+
+// Configure server timeouts for long-running operations
+// Allow requests to run up to Render's 100 minute limit
+const MAX_MS = 100 * 60 * 1000;    // 100 minutes in milliseconds
+
+server.setTimeout(MAX_MS);          // max time before socket timeout
+server.keepAliveTimeout = MAX_MS;   // max time to keep idle sockets open
+server.headersTimeout = MAX_MS;     // must be >= keepAliveTimeout
+
+console.log('Server configured with 100-minute timeout limits (matching Render platform limit)');
 
 // Handle graceful shutdown
 process.on('SIGTERM', async () => {

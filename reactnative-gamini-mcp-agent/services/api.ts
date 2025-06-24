@@ -2,7 +2,9 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Create axios instance for MCP Bridge API
-const mcpApi = axios.create();
+const mcpApi = axios.create({
+  timeout: 6000000, // 100 minute timeout for tool execution (matching server limit)
+});
 
 // Helper function to normalize URL (remove trailing slash)
 const normalizeUrl = (url: string): string => {

@@ -1,0 +1,576 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		"name": "MCP Bridge API - Aisera Compatible",
+		"description": "HTTP bridge to Model Context Protocol (MCP) servers. Contains embedded function specifications for AI parsing.\n\nInfrastructure Functions:\n- health: Check API health status (no parameters)\n- servers: Get all connected servers (no parameters)\n- tools: Get tools for a server (parameters: serverId:string)\n\nMathematical Functions:\n- add: Add two numbers (parameters: a:number, b:number)\n- subtract: Subtract two numbers (parameters: a:number, b:number)\n- multiply: Multiply two numbers (parameters: a:number, b:number)\n- divide: Divide two numbers (parameters: a:number, b:number)\n- power: Calculate power (parameters: base:number, exponent:number)\n- square_root: Calculate square root (parameters: value:number)\n- sin: Calculate sin (parameters: angle:number, unit:string)\n- cos: Calculate cos (parameters: angle:number, unit:string)\n- tan: Calculate tan (parameters: angle:number, unit:string)\n- distance: Calculate distance (parameters: x1:number, y1:number, x2:number, y2:number)\n- ln: Calculate natural log (parameters: value:number)\n- exp: Calculate e^x (parameters: value:number)\n- log: Calculate logarithm (parameters: value:number, base:number)\n- factorial: Calculate factorial (parameters: value:integer)\n- quadratic: Solve quadratic equation (parameters: a:number, b:number, c:number)\n- mean: Calculate arithmetic mean (parameters: values:array)\n- median: Calculate median (parameters: values:array)\n- complex_add: Add complex numbers (parameters: a_real:number, a_imag:number, b_real:number, b_imag:number)",
+		"version": "1.0.0",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "https://mcp-bridge-api-main.onrender.com",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Infrastructure",
+			"item": [
+				{
+					"name": "health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://mcp-bridge-api-main.onrender.com/health",
+							"host": ["https://mcp-bridge-api-main.onrender.com"],
+							"path": ["health"]
+						},
+						"description": "Check the health status of the MCP Bridge API\n\nReturns:\n- status: Overall status (\"ok\")\n- uptime: Server uptime in seconds\n- serverCount: Number of connected MCP servers\n- servers: Array of connected server details\n\nFunction Spec:\n```json\n{\n  \"name\": \"health\",\n  \"description\": \"Check MCP Bridge API health status\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {},\n    \"required\": []\n  },\n  \"metadata\": \"Infrastructure endpoint - health monitoring\"\n}\n```"
+					},
+					"response": []
+				},
+				{
+					"name": "servers",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://mcp-bridge-api-main.onrender.com/servers",
+							"host": ["https://mcp-bridge-api-main.onrender.com"],
+							"path": ["servers"]
+						},
+						"description": "Get list of all connected MCP servers\n\nReturns:\n- servers: Array of server objects with id, connected status, pid, etc.\n\nFunction Spec:\n```json\n{\n  \"name\": \"servers\",\n  \"description\": \"Get list of all connected MCP servers\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {},\n    \"required\": []\n  },\n  \"metadata\": \"Infrastructure endpoint - server discovery\"\n}\n```"
+					},
+					"response": []
+				},
+				{
+					"name": "tools",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://mcp-bridge-api-main.onrender.com/servers/math-server/tools",
+							"host": ["https://mcp-bridge-api-main.onrender.com"],
+							"path": ["servers", "math-server", "tools"]
+						},
+						"description": "Get list of all available tools for a specific server\n\nPath Parameters:\n- serverId (string, required): ID of the MCP server\n\nReturns:\n- tools: Array of tool objects with name, description, inputSchema\n\nFunction Spec:\n```json\n{\n  \"name\": \"tools\",\n  \"description\": \"Get list of available tools for a server\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"serverId\": {\n        \"type\": \"string\",\n        \"description\": \"ID of the MCP server\"\n      }\n    },\n    \"required\": [\"serverId\"]\n  },\n  \"metadata\": \"Infrastructure endpoint - tool discovery\"\n}\n```"
+					},
+					"response": []
+
+				}
+			],
+			"description": "Infrastructure endpoints for MCP Bridge API management, server discovery, and health monitoring"
+		},
+		{
+			"name": "Mathematical Functions",
+			"item": [
+				{
+					"name": "add",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"a\": {{a}},\n  \"b\": {{b}}\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://mcp-bridge-api-main.onrender.com/servers/math-server/tools/add",
+					"host": ["https://mcp-bridge-api-main.onrender.com"],
+					"path": ["servers", "math-server", "tools", "add"]
+				},
+				"description": "Add two numbers together\n\nParameters:\n- a (number, required): First number\n- b (number, required): Second number\n\nFunction Spec:\n```json\n{\n  \"name\": \"add\",\n  \"description\": \"Add two numbers together\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"a\": {\n        \"type\": \"number\",\n        \"description\": \"First number\"\n      },\n      \"b\": {\n        \"type\": \"number\",\n        \"description\": \"Second number\"\n      }\n    },\n    \"required\": [\"a\", \"b\"]\n  },\n  \"metadata\": \"Basic arithmetic operation - addition\"\n}\n```"
+			},
+			"response": []
+		},
+		{
+			"name": "subtract",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"a\": {{a}},\n  \"b\": {{b}}\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+							"url": {
+				"raw": "https://mcp-bridge-api-main.onrender.com/servers/math-server/tools/subtract",
+				"host": ["https://mcp-bridge-api-main.onrender.com"],
+				"path": ["servers", "math-server", "tools", "subtract"]
+			},
+				"description": "Subtract two numbers\n\nParameters:\n- a (number, required): First number (minuend)\n- b (number, required): Second number (subtrahend)\n\nFunction Spec:\n```json\n{\n  \"name\": \"subtract\",\n  \"description\": \"Subtract two numbers\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"a\": {\n        \"type\": \"number\",\n        \"description\": \"First number (minuend)\"\n      },\n      \"b\": {\n        \"type\": \"number\",\n        \"description\": \"Second number (subtrahend)\"\n      }\n    },\n    \"required\": [\"a\", \"b\"]\n  },\n  \"metadata\": \"Basic arithmetic operation - subtraction\"\n}\n```"
+			},
+			"response": []
+		},
+		{
+			"name": "multiply",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"a\": {{a}},\n  \"b\": {{b}}\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+							"url": {
+				"raw": "https://mcp-bridge-api-main.onrender.com/servers/math-server/tools/multiply",
+				"host": ["https://mcp-bridge-api-main.onrender.com"],
+				"path": ["servers", "math-server", "tools", "multiply"]
+			},
+				"description": "Multiply two numbers\n\nParameters:\n- a (number, required): First number\n- b (number, required): Second number\n\nFunction Spec:\n```json\n{\n  \"name\": \"multiply\",\n  \"description\": \"Multiply two numbers\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"a\": {\n        \"type\": \"number\",\n        \"description\": \"First number\"\n      },\n      \"b\": {\n        \"type\": \"number\",\n        \"description\": \"Second number\"\n      }\n    },\n    \"required\": [\"a\", \"b\"]\n  },\n  \"metadata\": \"Basic arithmetic operation - multiplication\"\n}\n```"
+			},
+			"response": []
+		},
+		{
+			"name": "divide",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"a\": {{a}},\n  \"b\": {{b}}\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+							"url": {
+				"raw": "https://mcp-bridge-api-main.onrender.com/servers/math-server/tools/divide",
+				"host": ["https://mcp-bridge-api-main.onrender.com"],
+				"path": ["servers", "math-server", "tools", "divide"]
+			},
+				"description": "Divide two numbers\n\nParameters:\n- a (number, required): Dividend (number to be divided)\n- b (number, required): Divisor (number to divide by)\n\nFunction Spec:\n```json\n{\n  \"name\": \"divide\",\n  \"description\": \"Divide two numbers\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"a\": {\n        \"type\": \"number\",\n        \"description\": \"Dividend (number to be divided)\"\n      },\n      \"b\": {\n        \"type\": \"number\",\n        \"description\": \"Divisor (number to divide by)\"\n      }\n    },\n    \"required\": [\"a\", \"b\"]\n  },\n  \"metadata\": \"Basic arithmetic operation - division\"\n}\n```"
+			},
+			"response": []
+		},
+		{
+			"name": "power",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"base\": {{base}},\n  \"exponent\": {{exponent}}\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+							"url": {
+				"raw": "https://mcp-bridge-api-main.onrender.com/servers/math-server/tools/power",
+				"host": ["https://mcp-bridge-api-main.onrender.com"],
+				"path": ["servers", "math-server", "tools", "power"]
+			},
+				"description": "Calculate base raised to exponent power\n\nParameters:\n- base (number, required): Base number\n- exponent (number, required): Exponent\n\nFunction Spec:\n```json\n{\n  \"name\": \"power\",\n  \"description\": \"Raise base to exponent power\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"base\": {\n        \"type\": \"number\",\n        \"description\": \"Base number\"\n      },\n      \"exponent\": {\n        \"type\": \"number\",\n        \"description\": \"Exponent\"\n      }\n    },\n    \"required\": [\"base\", \"exponent\"]\n  },\n  \"metadata\": \"Advanced mathematical operation - exponentiation\"\n}\n```"
+			},
+			"response": []
+		},
+		{
+			"name": "square_root",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"value\": {{value}}\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+							"url": {
+				"raw": "https://mcp-bridge-api-main.onrender.com/servers/math-server/tools/square_root",
+				"host": ["https://mcp-bridge-api-main.onrender.com"],
+				"path": ["servers", "math-server", "tools", "square_root"]
+			},
+				"description": "Calculate square root of a number\n\nParameters:\n- value (number, required): Number to find square root of\n\nFunction Spec:\n```json\n{\n  \"name\": \"square_root\",\n  \"description\": \"Calculate square root of a number\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"value\": {\n        \"type\": \"number\",\n        \"description\": \"Number to find square root of\"\n      }\n    },\n    \"required\": [\"value\"]\n  },\n  \"metadata\": \"Advanced mathematical operation - square root\"\n}\n```"
+			},
+			"response": []
+		},
+		{
+			"name": "sin",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"angle\": {{angle}},\n  \"unit\": \"{{unit}}\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+							"url": {
+				"raw": "https://mcp-bridge-api-main.onrender.com/servers/math-server/tools/sin",
+				"host": ["https://mcp-bridge-api-main.onrender.com"],
+				"path": ["servers", "math-server", "tools", "sin"]
+			},
+				"description": "Calculate sin of an angle\n\nParameters:\n- angle (number, required): Angle value\n- unit (string, optional): Unit of angle measurement (radians or degrees, default: radians)\n\nFunction Spec:\n```json\n{\n  \"name\": \"sin\",\n  \"description\": \"Calculate sin of an angle\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"angle\": {\n        \"type\": \"number\",\n        \"description\": \"Angle value\"\n      },\n      \"unit\": {\n        \"type\": \"string\",\n        \"enum\": [\"radians\", \"degrees\"],\n        \"default\": \"radians\",\n        \"description\": \"Unit of angle measurement\"\n      }\n    },\n    \"required\": [\"angle\"]\n  },\n  \"metadata\": \"Trigonometric function - sin\"\n}\n```"
+			},
+			"response": []
+		},
+		{
+			"name": "cos",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"angle\": {{angle}},\n  \"unit\": \"{{unit}}\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+							"url": {
+				"raw": "https://mcp-bridge-api-main.onrender.com/servers/math-server/tools/cos",
+				"host": ["https://mcp-bridge-api-main.onrender.com"],
+				"path": ["servers", "math-server", "tools", "cos"]
+			},
+				"description": "Calculate cos of an angle\n\nParameters:\n- angle (number, required): Angle value\n- unit (string, optional): Unit of angle measurement (radians or degrees, default: radians)\n\nFunction Spec:\n```json\n{\n  \"name\": \"cos\",\n  \"description\": \"Calculate cos of an angle\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"angle\": {\n        \"type\": \"number\",\n        \"description\": \"Angle value\"\n      },\n      \"unit\": {\n        \"type\": \"string\",\n        \"enum\": [\"radians\", \"degrees\"],\n        \"default\": \"radians\",\n        \"description\": \"Unit of angle measurement\"\n      }\n    },\n    \"required\": [\"angle\"]\n  },\n  \"metadata\": \"Trigonometric function - cos\"\n}\n```"
+			},
+			"response": []
+		},
+		{
+			"name": "tan",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"angle\": {{angle}},\n  \"unit\": \"{{unit}}\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+							"url": {
+				"raw": "https://mcp-bridge-api-main.onrender.com/servers/math-server/tools/tan",
+				"host": ["https://mcp-bridge-api-main.onrender.com"],
+				"path": ["servers", "math-server", "tools", "tan"]
+			},
+				"description": "Calculate tan of an angle\n\nParameters:\n- angle (number, required): Angle value\n- unit (string, optional): Unit of angle measurement (radians or degrees, default: radians)\n\nFunction Spec:\n```json\n{\n  \"name\": \"tan\",\n  \"description\": \"Calculate tan of an angle\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"angle\": {\n        \"type\": \"number\",\n        \"description\": \"Angle value\"\n      },\n      \"unit\": {\n        \"type\": \"string\",\n        \"enum\": [\"radians\", \"degrees\"],\n        \"default\": \"radians\",\n        \"description\": \"Unit of angle measurement\"\n      }\n    },\n    \"required\": [\"angle\"]\n  },\n  \"metadata\": \"Trigonometric function - tan\"\n}\n```"
+			},
+			"response": []
+		},
+		{
+			"name": "distance",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"x1\": {{x1}},\n  \"y1\": {{y1}},\n  \"x2\": {{x2}},\n  \"y2\": {{y2}}\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+							"url": {
+				"raw": "https://mcp-bridge-api-main.onrender.com/servers/math-server/tools/distance",
+				"host": ["https://mcp-bridge-api-main.onrender.com"],
+				"path": ["servers", "math-server", "tools", "distance"]
+			},
+				"description": "Calculate distance between two points\n\nParameters:\n- x1 (number, required): X coordinate of first point\n- y1 (number, required): Y coordinate of first point\n- x2 (number, required): X coordinate of second point\n- y2 (number, required): Y coordinate of second point\n\nFunction Spec:\n```json\n{\n  \"name\": \"distance\",\n  \"description\": \"Calculate distance between two points\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"x1\": {\n        \"type\": \"number\",\n        \"description\": \"X coordinate of first point\"\n      },\n      \"y1\": {\n        \"type\": \"number\",\n        \"description\": \"Y coordinate of first point\"\n      },\n      \"x2\": {\n        \"type\": \"number\",\n        \"description\": \"X coordinate of second point\"\n      },\n      \"y2\": {\n        \"type\": \"number\",\n        \"description\": \"Y coordinate of second point\"\n      }\n    },\n    \"required\": [\"x1\", \"y1\", \"x2\", \"y2\"]\n  },\n  \"metadata\": \"Geometric calculation - Euclidean distance\"\n}\n```"
+			},
+			"response": []
+		},
+		{
+			"name": "ln",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"value\": {{value}}\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+							"url": {
+				"raw": "https://mcp-bridge-api-main.onrender.com/servers/math-server/tools/ln",
+				"host": ["https://mcp-bridge-api-main.onrender.com"],
+				"path": ["servers", "math-server", "tools", "ln"]
+			},
+				"description": "Calculate natural logarithm\n\nParameters:\n- value (number, required): Value to take natural logarithm of (must be positive)\n\nFunction Spec:\n```json\n{\n  \"name\": \"ln\",\n  \"description\": \"Calculate natural logarithm\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"value\": {\n        \"type\": \"number\",\n        \"description\": \"Value to take natural logarithm of (must be positive)\",\n        \"minimum\": 0,\n        \"exclusiveMinimum\": true\n      }\n    },\n    \"required\": [\"value\"]\n  },\n  \"metadata\": \"Advanced mathematical function - natural logarithm\"\n}\n```"
+			},
+			"response": []
+		},
+		{
+			"name": "exp",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"value\": {{value}}\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+							"url": {
+				"raw": "https://mcp-bridge-api-main.onrender.com/servers/math-server/tools/exp",
+				"host": ["https://mcp-bridge-api-main.onrender.com"],
+				"path": ["servers", "math-server", "tools", "exp"]
+			},
+				"description": "Calculate exponential function (e^x)\n\nParameters:\n- value (number, required): Exponent value\n\nFunction Spec:\n```json\n{\n  \"name\": \"exp\",\n  \"description\": \"Calculate exponential function (e^x)\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"value\": {\n        \"type\": \"number\",\n        \"description\": \"Exponent value\"\n      }\n    },\n    \"required\": [\"value\"]\n  },\n  \"metadata\": \"Advanced mathematical function - exponential\"\n}\n```"
+			},
+			"response": []
+		},
+		{
+			"name": "log",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"value\": {{value}},\n  \"base\": {{base}}\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+							"url": {
+				"raw": "https://mcp-bridge-api-main.onrender.com/servers/math-server/tools/log",
+				"host": ["https://mcp-bridge-api-main.onrender.com"],
+				"path": ["servers", "math-server", "tools", "log"]
+			},
+				"description": "Calculate log with specified base\n\nParameters:\n- value (number, required): Value to take log of (must be positive)\n- base (number, optional): Base of log (default: 10)\n\nFunction Spec:\n```json\n{\n  \"name\": \"log\",\n  \"description\": \"Calculate logarithm with specified base\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"value\": {\n        \"type\": \"number\",\n        \"description\": \"Value to take logarithm of\",\n        \"minimum\": 0,\n        \"exclusiveMinimum\": true\n      },\n      \"base\": {\n        \"type\": \"number\",\n        \"description\": \"Base of logarithm\",\n        \"default\": 10,\n        \"minimum\": 0,\n        \"exclusiveMinimum\": true\n      }\n    },\n    \"required\": [\"value\"]\n  },\n  \"metadata\": \"Advanced mathematical function - log\"\n}\n```"
+			},
+			"response": []
+		},
+		{
+			"name": "factorial",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"value\": {{value}}\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+							"url": {
+				"raw": "https://mcp-bridge-api-main.onrender.com/servers/math-server/tools/factorial",
+				"host": ["https://mcp-bridge-api-main.onrender.com"],
+				"path": ["servers", "math-server", "tools", "factorial"]
+			},
+				"description": "Calculate factorial of a non-negative integer\n\nParameters:\n- value (integer, required): Non-negative integer (minimum: 0)\n\nFunction Spec:\n```json\n{\n  \"name\": \"factorial\",\n  \"description\": \"Calculate factorial of a non-negative integer\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"value\": {\n        \"type\": \"integer\",\n        \"description\": \"Non-negative integer\",\n        \"minimum\": 0\n      }\n    },\n    \"required\": [\"value\"]\n  },\n  \"metadata\": \"Advanced mathematical function - factorial\"\n}\n```"
+			},
+			"response": []
+		},
+		{
+			"name": "quadratic",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"a\": {{a}},\n  \"b\": {{b}},\n  \"c\": {{c}}\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+							"url": {
+				"raw": "https://mcp-bridge-api-main.onrender.com/servers/math-server/tools/quadratic",
+				"host": ["https://mcp-bridge-api-main.onrender.com"],
+				"path": ["servers", "math-server", "tools", "quadratic"]
+			},
+				"description": "Solve quadratic equation ax² + bx + c = 0\n\nParameters:\n- a (number, required): Coefficient of x²\n- b (number, required): Coefficient of x\n- c (number, required): Constant term\n\nFunction Spec:\n```json\n{\n  \"name\": \"quadratic\",\n  \"description\": \"Solve quadratic equation ax² + bx + c = 0\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"a\": {\n        \"type\": \"number\",\n        \"description\": \"Coefficient of x²\"\n      },\n      \"b\": {\n        \"type\": \"number\",\n        \"description\": \"Coefficient of x\"\n      },\n      \"c\": {\n        \"type\": \"number\",\n        \"description\": \"Constant term\"\n      }\n    },\n    \"required\": [\"a\", \"b\", \"c\"]\n  },\n  \"metadata\": \"Advanced mathematical function - quadratic equation solver\"\n}\n```"
+			},
+			"response": []
+		},
+		{
+			"name": "mean",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"values\": {{values}}\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+							"url": {
+				"raw": "https://mcp-bridge-api-main.onrender.com/servers/math-server/tools/mean",
+				"host": ["https://mcp-bridge-api-main.onrender.com"],
+				"path": ["servers", "math-server", "tools", "mean"]
+			},
+				"description": "Calculate arithmetic mean of a list of numbers\n\nParameters:\n- values (array, required): Array of numbers or JSON array string\n\nFunction Spec:\n```json\n{\n  \"name\": \"mean\",\n  \"description\": \"Calculate arithmetic mean of a list of numbers\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"values\": {\n        \"oneOf\": [\n          {\n            \"type\": \"array\",\n            \"items\": {\"type\": \"number\"},\n            \"minItems\": 1\n          },\n          {\n            \"type\": \"string\",\n            \"description\": \"JSON array string of numbers, e.g., '[1, 2, 3, 4, 5]'\"\n          }\n        ],\n        \"description\": \"Array of numbers or JSON array string\"\n      }\n    },\n    \"required\": [\"values\"]\n  },\n  \"metadata\": \"Statistical function - arithmetic mean\"\n}\n```"
+			},
+			"response": []
+		},
+		{
+			"name": "median",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"values\": {{values}}\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+							"url": {
+				"raw": "https://mcp-bridge-api-main.onrender.com/servers/math-server/tools/median",
+				"host": ["https://mcp-bridge-api-main.onrender.com"],
+				"path": ["servers", "math-server", "tools", "median"]
+			},
+				"description": "Calculate median of a list of numbers\n\nParameters:\n- values (array, required): Array of numbers or JSON array string\n\nFunction Spec:\n```json\n{\n  \"name\": \"median\",\n  \"description\": \"Calculate median of a list of numbers\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"values\": {\n        \"oneOf\": [\n          {\n            \"type\": \"array\",\n            \"items\": {\"type\": \"number\"},\n            \"minItems\": 1\n          },\n          {\n            \"type\": \"string\",\n            \"description\": \"JSON array string of numbers, e.g., '[1, 2, 3, 4, 5]'\"\n          }\n        ],\n        \"description\": \"Array of numbers or JSON array string\"\n      }\n    },\n    \"required\": [\"values\"]\n  },\n  \"metadata\": \"Statistical function - median\"\n}\n```"
+			},
+			"response": []
+		},
+		{
+			"name": "complex_add",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"a_real\": {{a_real}},\n  \"a_imag\": {{a_imag}},\n  \"b_real\": {{b_real}},\n  \"b_imag\": {{b_imag}}\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+							"url": {
+				"raw": "https://mcp-bridge-api-main.onrender.com/servers/math-server/tools/complex_add",
+				"host": ["https://mcp-bridge-api-main.onrender.com"],
+				"path": ["servers", "math-server", "tools", "complex_add"]
+			},
+				"description": "Add two complex numbers\n\nParameters:\n- a_real (number, required): Real part of first complex number\n- a_imag (number, required): Imaginary part of first complex number\n- b_real (number, required): Real part of second complex number\n- b_imag (number, required): Imaginary part of second complex number\n\nFunction Spec:\n```json\n{\n  \"name\": \"complex_add\",\n  \"description\": \"Add two complex numbers\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"a_real\": {\n        \"type\": \"number\",\n        \"description\": \"Real part of first complex number\"\n      },\n      \"a_imag\": {\n        \"type\": \"number\",\n        \"description\": \"Imaginary part of first complex number\"\n      },\n      \"b_real\": {\n        \"type\": \"number\",\n        \"description\": \"Real part of second complex number\"\n      },\n      \"b_imag\": {\n        \"type\": \"number\",\n        \"description\": \"Imaginary part of second complex number\"\n      }\n    },\n    \"required\": [\"a_real\", \"a_imag\", \"b_real\", \"b_imag\"]\n  },\n  \"metadata\": \"Advanced mathematical function - complex number addition\"\n}\n```"
+			},
+			"response": []
+		}
+			]
+		}
+	]
+}

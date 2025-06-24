@@ -156,7 +156,7 @@ def setup_gemini():
 def get_all_servers(mcp_bridge_url):
     """Get list of all servers from MCP Bridge."""
     try:
-        response = requests.get(f"{mcp_bridge_url}/servers")
+        response = requests.get(f"{mcp_bridge_url}/servers", timeout=30)
         response.raise_for_status()
         return response.json().get("servers", [])
     except requests.RequestException as e:
@@ -166,7 +166,7 @@ def get_all_servers(mcp_bridge_url):
 def get_server_tools(server_id, mcp_bridge_url):
     """Get all tools for a specific server."""
     try:
-        response = requests.get(f"{mcp_bridge_url}/servers/{server_id}/tools")
+        response = requests.get(f"{mcp_bridge_url}/servers/{server_id}/tools", timeout=30)
         response.raise_for_status()
         return response.json().get("tools", [])
     except requests.RequestException as e:
@@ -266,7 +266,7 @@ def execute_tool(server_id, tool_name, parameters, mcp_bridge_url):
     """Execute a tool on an MCP server."""
     try:
         url = f"{mcp_bridge_url}/servers/{server_id}/tools/{tool_name}"
-        response = requests.post(url, json=parameters)
+        response = requests.post(url, json=parameters, timeout=6000)  # 100 minutes for tool execution
         response.raise_for_status()
         return response.json(), None
     except requests.RequestException as e:
@@ -298,7 +298,7 @@ def confirm_operation(confirmation_data, mcp_bridge_url):
     if confirmed:
         try:
             url = f"{mcp_bridge_url}/confirmations/{confirmation_data['confirmation_id']}"
-            response = requests.post(url, json={"confirm": True})
+            response = requests.post(url, json={"confirm": True}, timeout=30)
             response.raise_for_status()
             return response.json(), None
         except requests.RequestException as e:
@@ -313,7 +313,7 @@ def confirm_operation(confirmation_data, mcp_bridge_url):
     else:
         try:
             url = f"{mcp_bridge_url}/confirmations/{confirmation_data['confirmation_id']}"
-            response = requests.post(url, json={"confirm": False})
+            response = requests.post(url, json={"confirm": False}, timeout=30)
             response.raise_for_status()
             return {"status": "rejected", "message": "User rejected the operation"}, None
         except requests.RequestException as e:
@@ -428,7 +428,7 @@ def main():
     
     # Check MCP Bridge connection
     try:
-        health_response = requests.get(f"{mcp_bridge_url}/health")
+        health_response = requests.get(f"{mcp_bridge_url}/health", timeout=30)
         health_response.raise_for_status()
         console.print(f"[bold green]✓[/bold green] Connected to MCP Bridge: {health_response.json()['serverCount']} servers found")
     except requests.RequestException as e:
