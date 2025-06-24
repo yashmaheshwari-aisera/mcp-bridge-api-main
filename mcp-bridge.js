@@ -1486,16 +1486,21 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
     if (serverConfig.url) {
       // For HTTP/SSE servers, try to extract a meaningful ID from URL
       const urlLower = serverConfig.url.toLowerCase();
-      if (urlLower.includes('math')) {
+      
+      // Check for specific server types in the full URL
+      if (urlLower.includes('math') || urlLower.includes('calculator')) {
         serverId = 'math-server';
-      } else if (urlLower.includes('filesystem')) {
+      } else if (urlLower.includes('filesystem') || urlLower.includes('files')) {
         serverId = 'filesystem-server';
-      } else if (urlLower.includes('sqlite')) {
+      } else if (urlLower.includes('sqlite') || urlLower.includes('database')) {
         serverId = 'sqlite-server';
-      } else if (urlLower.includes('postgres')) {
+      } else if (urlLower.includes('postgres') || urlLower.includes('postgresql')) {
         serverId = 'postgres-server';
-      } else if (urlLower.includes('memory')) {
+      } else if (urlLower.includes('memory') || urlLower.includes('cache')) {
         serverId = 'memory-server';
+      } else if (urlLower.includes('proxy') && urlLower.includes('mcp')) {
+        // Special case for MCP proxy servers - try to determine from path or context
+        serverId = 'math-server'; // Default to math-server for the known proxy
       } else {
         // Generate a generic ID from the URL
         try {
@@ -1536,7 +1541,7 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
   const collection = {
     info: {
       name: collectionName,
-      description: `Auto-generated Postman collection for MCP server: ${serverIdentifier}\n\nGenerated on: ${new Date().toISOString()}\n\nThis collection contains all discovered tools, resources, and prompts from the MCP server.\n\nAll requests go through the MCP Bridge API for proper integration.\n\nServer ID: ${serverId}`,
+      description: `Auto-generated Postman collection for MCP server integration with Aisera.\n\nServer: ${serverIdentifier}\nGenerated: ${new Date().toISOString()}\nServer ID: ${serverId}\n\n🔧 SETUP INSTRUCTIONS:\n1. Import this collection into Postman or Aisera\n2. Update the 'server_id' environment variable if needed\n3. All requests use the MCP Bridge API for seamless integration\n\n📁 COLLECTION CONTENTS:\n• ${tools.length} Tools - Execute MCP server functions\n• ${resources.length} Resources - Access MCP server data\n• ${prompts.length} Prompts - Use MCP server templates\n• General Operations - List tools, resources, and health checks\n\n🌐 All requests go through: https://mcp-bridge-api-main.onrender.com\n\nReady for Aisera integration!`,
       schema: "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     item: [],
@@ -1564,7 +1569,6 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
   }
   
   // Add helpful variables for common parameter values
-  console.log('Adding helper variables to collection...');
   collection.variable.push({
     key: "unit",
     value: "radians",
@@ -1576,8 +1580,6 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
     value: "[1, 2, 3, 4, 5]",
     description: "Array of numbers for statistical functions (JSON format)"
   });
-  
-  console.log(`Total variables after adding helpers: ${collection.variable.length}`);
   
   // Generate Tools folder
   if (tools.length > 0) {
