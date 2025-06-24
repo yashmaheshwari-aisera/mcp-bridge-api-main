@@ -1482,31 +1482,54 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
   // Determine appropriate server ID based on server type and URL
   let serverId = 'your-server-id';
   
-  if (serverConfig.url) {
-    // For HTTP/SSE servers, try to extract a meaningful ID from URL
-    if (serverConfig.url.includes('math')) {
-      serverId = 'math-server';
-    } else if (serverConfig.url.includes('filesystem')) {
-      serverId = 'filesystem-server';
-    } else {
-      // Generate a generic ID from the URL
-      const url = new URL(serverConfig.url);
-      const hostname = url.hostname.replace(/[^a-zA-Z0-9]/g, '-');
-      serverId = `${hostname}-server`;
+  try {
+    if (serverConfig.url) {
+      // For HTTP/SSE servers, try to extract a meaningful ID from URL
+      const urlLower = serverConfig.url.toLowerCase();
+      if (urlLower.includes('math')) {
+        serverId = 'math-server';
+      } else if (urlLower.includes('filesystem')) {
+        serverId = 'filesystem-server';
+      } else if (urlLower.includes('sqlite')) {
+        serverId = 'sqlite-server';
+      } else if (urlLower.includes('postgres')) {
+        serverId = 'postgres-server';
+      } else if (urlLower.includes('memory')) {
+        serverId = 'memory-server';
+      } else {
+        // Generate a generic ID from the URL
+        try {
+          const url = new URL(serverConfig.url);
+          const hostname = url.hostname.replace(/[^a-zA-Z0-9]/g, '-').replace(/^-+|-+$/g, '');
+          serverId = hostname ? `${hostname}-server` : 'http-server';
+        } catch (urlError) {
+          serverId = 'http-server';
+        }
+      }
+    } else if (serverConfig.command) {
+      // For stdio servers, generate ID from command
+      const commandLower = serverConfig.command.toLowerCase();
+      const argsLower = (serverConfig.args || []).join(' ').toLowerCase();
+      
+      if (commandLower.includes('filesystem') || argsLower.includes('filesystem')) {
+        serverId = 'filesystem-server';
+      } else if (commandLower.includes('sqlite') || argsLower.includes('sqlite')) {
+        serverId = 'sqlite-server';
+      } else if (commandLower.includes('postgres') || argsLower.includes('postgres')) {
+        serverId = 'postgres-server';
+      } else if (argsLower.includes('everything')) {
+        serverId = 'everything-server';
+      } else if (commandLower.includes('math') || argsLower.includes('math')) {
+        serverId = 'math-server';
+      } else {
+        // Generate generic ID from command
+        const cmdName = serverConfig.command.split(/[/\\]/).pop().replace(/[^a-zA-Z0-9]/g, '-').replace(/^-+|-+$/g, '');
+        serverId = cmdName ? `${cmdName}-server` : 'stdio-server';
+      }
     }
-  } else if (serverConfig.command) {
-    // For stdio servers, generate ID from command
-    if (serverConfig.command.includes('filesystem')) {
-      serverId = 'filesystem-server';
-    } else if (serverConfig.args && serverConfig.args.some(arg => arg.includes('filesystem'))) {
-      serverId = 'filesystem-server';
-    } else if (serverConfig.args && serverConfig.args.some(arg => arg.includes('everything'))) {
-      serverId = 'everything-server';
-    } else {
-      // Generate generic ID from command
-      const cmdName = serverConfig.command.split('/').pop().replace(/[^a-zA-Z0-9]/g, '-');
-      serverId = `${cmdName}-server`;
-    }
+  } catch (error) {
+    console.warn('Error generating server ID:', error);
+    serverId = 'custom-server';
   }
   
   // Collection info
@@ -1541,18 +1564,17 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
   }
   
   // Add helpful variables for common parameter values
-  collection.variable.push(
-    {
-      key: "unit",
-      value: "radians",
-      description: "Unit for trigonometric functions (radians or degrees)"
-    },
-    {
-      key: "values",
-      value: "[1, 2, 3, 4, 5]",
-      description: "Array of numbers for statistical functions (JSON format)"
-    }
-  );
+  collection.variable.push({
+    key: "unit",
+    value: "radians",
+    description: "Unit for trigonometric functions (radians or degrees)"
+  });
+  
+  collection.variable.push({
+    key: "values",
+    value: "[1, 2, 3, 4, 5]",
+    description: "Array of numbers for statistical functions (JSON format)"
+  });
   
   // Generate Tools folder
   if (tools.length > 0) {
