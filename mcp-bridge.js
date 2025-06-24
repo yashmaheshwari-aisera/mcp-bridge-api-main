@@ -1564,6 +1564,7 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
   }
   
   // Add helpful variables for common parameter values
+  console.log('Adding helper variables to collection...');
   collection.variable.push({
     key: "unit",
     value: "radians",
@@ -1575,6 +1576,8 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
     value: "[1, 2, 3, 4, 5]",
     description: "Array of numbers for statistical functions (JSON format)"
   });
+  
+  console.log(`Total variables after adding helpers: ${collection.variable.length}`);
   
   // Generate Tools folder
   if (tools.length > 0) {
