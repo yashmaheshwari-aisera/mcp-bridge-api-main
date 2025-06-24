@@ -1449,17 +1449,17 @@ app.post('/generate-postman', async (req, res) => {
         collectionSize: JSON.stringify(postmanCollection).length
       });
       
-      res.json({
-        success: true,
-        collection: postmanCollection,
-        metadata: {
-          serverUrl: serverUrl || serverCommand,
-          toolsCount: parseInt(tools.length, 10),
-          resourcesCount: parseInt(resources.length, 10),
-          promptsCount: parseInt(prompts.length, 10),
-          generatedAt: new Date().toISOString()
-        }
-      });
+      // Add metadata to the collection itself instead of wrapping it
+      postmanCollection.metadata = {
+        serverUrl: serverUrl || serverCommand,
+        toolsCount: parseInt(tools.length, 10),
+        resourcesCount: parseInt(resources.length, 10),
+        promptsCount: parseInt(prompts.length, 10),
+        generatedAt: new Date().toISOString()
+      };
+      
+      // Return the collection directly (not wrapped) for proper Postman compatibility
+      res.json(postmanCollection);
       
     } finally {
       // Clean up temporary server
@@ -1545,11 +1545,13 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
     serverId = 'custom-server';
   }
   
-  // Collection info
+  // Collection info with proper Postman ID
   const collection = {
     info: {
+      _postman_id: uuidv4(),
       name: collectionName,
       description: `Auto-generated Postman collection for MCP server integration with Aisera.\n\nServer: ${serverIdentifier}\nGenerated: ${new Date().toISOString()}\nServer ID: ${serverId}\n\n🔧 SETUP INSTRUCTIONS:\n1. Import this collection into Postman or Aisera\n2. Update the 'server_id' environment variable if needed\n3. All requests use the MCP Bridge API for seamless integration\n\n📁 COLLECTION CONTENTS:\n• ${tools.length} Tools - Execute MCP server functions\n• ${resources.length} Resources - Access MCP server data\n• ${prompts.length} Prompts - Use MCP server templates\n• General Operations - List tools, resources, and health checks\n\n🌐 All requests go through: https://mcp-bridge-api-main.onrender.com\n\nReady for Aisera integration!`,
+      version: "1.0.0",
       schema: "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     item: [],
@@ -1557,11 +1559,13 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
       {
         key: "mcp_bridge_url",
         value: bridgeBaseUrl,
+        type: "string",
         description: "Base URL for the MCP Bridge API"
       },
       {
         key: "server_id",
         value: serverId,
+        type: "string",
         description: "MCP Server ID in the bridge (update this to match your actual server ID)"
       }
     ]
@@ -1572,6 +1576,7 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
     collection.variable.push({
       key: "auth_token",
       value: serverConfig.authToken,
+      type: "string",
       description: "Authentication token (if required by bridge)"
     });
   }
@@ -1580,12 +1585,14 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
   collection.variable.push({
     key: "unit",
     value: "radians",
+    type: "string",
     description: "Unit for trigonometric functions (radians or degrees)"
   });
   
   collection.variable.push({
     key: "values",
     value: "[1, 2, 3, 4, 5]",
+    type: "string",
     description: "Array of numbers for statistical functions (JSON format)"
   });
   
@@ -1637,7 +1644,8 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
             path: ["servers", "{{server_id}}", "tools"]
           },
           description: "List all available tools on the MCP server through the bridge"
-        }
+        },
+        response: []
       },
       {
         name: "List All Resources",
@@ -1652,7 +1660,8 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
             path: ["servers", "{{server_id}}", "resources"]
           },
           description: "List all available resources on the MCP server through the bridge"
-        }
+        },
+        response: []
       },
       {
         name: "List All Prompts",
@@ -1667,7 +1676,8 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
             path: ["servers", "{{server_id}}", "prompts"]
           },
           description: "List all available prompts on the MCP server through the bridge"
-        }
+        },
+        response: []
       },
       {
         name: "Server Health Check",
@@ -1682,7 +1692,8 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
             path: ["health"]
           },
           description: "Check the health and status of all connected MCP servers"
-        }
+        },
+        response: []
       }
     ]
   };
@@ -1704,7 +1715,12 @@ function generateToolRequest(tool, bridgeBaseUrl) {
       ],
       body: {
         mode: "raw",
-        raw: JSON.stringify(parameters, null, 2)
+        raw: JSON.stringify(parameters, null, 2),
+        options: {
+          raw: {
+            language: "json"
+          }
+        }
       },
       url: {
         raw: `{{mcp_bridge_url}}/servers/{{server_id}}/tools/${tool.name}`,
@@ -1712,7 +1728,8 @@ function generateToolRequest(tool, bridgeBaseUrl) {
         path: ["servers", "{{server_id}}", "tools", tool.name]
       },
       description: `${tool.description || 'No description available'}\n\nTool: ${tool.name}\n\nThis request calls the MCP Bridge API which will execute the tool on the connected MCP server.\n\n${generateParameterDocumentation(tool.inputSchema)}`
-    }
+    },
+    response: []
   };
 }
 
@@ -1731,7 +1748,8 @@ function generateResourceRequest(resource, bridgeBaseUrl) {
         path: ["servers", "{{server_id}}", "resources", encodeURIComponent(resource.uri)]
       },
       description: `${resource.description || 'No description available'}\n\nResource URI: ${resource.uri}\n\nMime Type: ${resource.mimeType || 'Unknown'}\n\nThis request gets the resource through the MCP Bridge API.`
-    }
+    },
+    response: []
   };
 }
 
@@ -1748,7 +1766,12 @@ function generatePromptRequest(prompt, bridgeBaseUrl) {
       ],
       body: {
         mode: "raw",
-        raw: JSON.stringify(arguments, null, 2)
+        raw: JSON.stringify(arguments, null, 2),
+        options: {
+          raw: {
+            language: "json"
+          }
+        }
       },
       url: {
         raw: `{{mcp_bridge_url}}/servers/{{server_id}}/prompts/${prompt.name}`,
@@ -1756,7 +1779,8 @@ function generatePromptRequest(prompt, bridgeBaseUrl) {
         path: ["servers", "{{server_id}}", "prompts", prompt.name]
       },
       description: `${prompt.description || 'No description available'}\n\nPrompt: ${prompt.name}\n\nThis request executes the prompt through the MCP Bridge API.\n\n${generateArgumentDocumentation(prompt.arguments)}`
-    }
+    },
+    response: []
   };
 }
 
