@@ -1557,7 +1557,7 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
     item: [],
     variable: [
       {
-        key: "mcp_bridge_url",
+        key: "url",
         value: bridgeBaseUrl,
         type: "string",
         description: "Base URL for the MCP Bridge API"
@@ -1639,8 +1639,8 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
             { key: "Content-Type", value: "application/json" }
           ],
           url: {
-            raw: `{{mcp_bridge_url}}/servers/{{server_id}}/tools`,
-            host: ["{{mcp_bridge_url}}"],
+            raw: `{{url}}/servers/{{server_id}}/tools`,
+            host: ["{{url}}"],
             path: ["servers", "{{server_id}}", "tools"]
           },
           description: "List all available tools on the MCP server through the bridge"
@@ -1655,8 +1655,8 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
             { key: "Content-Type", value: "application/json" }
           ],
           url: {
-            raw: `{{mcp_bridge_url}}/servers/{{server_id}}/resources`,
-            host: ["{{mcp_bridge_url}}"],
+            raw: `{{url}}/servers/{{server_id}}/resources`,
+            host: ["{{url}}"],
             path: ["servers", "{{server_id}}", "resources"]
           },
           description: "List all available resources on the MCP server through the bridge"
@@ -1671,8 +1671,8 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
             { key: "Content-Type", value: "application/json" }
           ],
           url: {
-            raw: `{{mcp_bridge_url}}/servers/{{server_id}}/prompts`,
-            host: ["{{mcp_bridge_url}}"],
+            raw: `{{url}}/servers/{{server_id}}/prompts`,
+            host: ["{{url}}"],
             path: ["servers", "{{server_id}}", "prompts"]
           },
           description: "List all available prompts on the MCP server through the bridge"
@@ -1687,8 +1687,8 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
             { key: "Content-Type", value: "application/json" }
           ],
           url: {
-            raw: `{{mcp_bridge_url}}/health`,
-            host: ["{{mcp_bridge_url}}"],
+            raw: `{{url}}/health`,
+            host: ["{{url}}"],
             path: ["health"]
           },
           description: "Check the health and status of all connected MCP servers"
@@ -1723,8 +1723,8 @@ function generateToolRequest(tool, bridgeBaseUrl) {
         }
       },
       url: {
-        raw: `{{mcp_bridge_url}}/servers/{{server_id}}/tools/${tool.name}`,
-        host: ["{{mcp_bridge_url}}"],
+        raw: `{{url}}/servers/{{server_id}}/tools/${tool.name}`,
+        host: ["{{url}}"],
         path: ["servers", "{{server_id}}", "tools", tool.name]
       },
       description: `${tool.description || 'No description available'}\n\nTool: ${tool.name}\n\nThis request calls the MCP Bridge API which will execute the tool on the connected MCP server.\n\n${generateParameterDocumentation(tool.inputSchema)}`
@@ -1743,8 +1743,8 @@ function generateResourceRequest(resource, bridgeBaseUrl) {
         { key: "Content-Type", value: "application/json" }
       ],
       url: {
-        raw: `{{mcp_bridge_url}}/servers/{{server_id}}/resources/${encodeURIComponent(resource.uri)}`,
-        host: ["{{mcp_bridge_url}}"],
+        raw: `{{url}}/servers/{{server_id}}/resources/${encodeURIComponent(resource.uri)}`,
+        host: ["{{url}}"],
         path: ["servers", "{{server_id}}", "resources", encodeURIComponent(resource.uri)]
       },
       description: `${resource.description || 'No description available'}\n\nResource URI: ${resource.uri}\n\nMime Type: ${resource.mimeType || 'Unknown'}\n\nThis request gets the resource through the MCP Bridge API.`
@@ -1774,8 +1774,8 @@ function generatePromptRequest(prompt, bridgeBaseUrl) {
         }
       },
       url: {
-        raw: `{{mcp_bridge_url}}/servers/{{server_id}}/prompts/${prompt.name}`,
-        host: ["{{mcp_bridge_url}}"],
+        raw: `{{url}}/servers/{{server_id}}/prompts/${prompt.name}`,
+        host: ["{{url}}"],
         path: ["servers", "{{server_id}}", "prompts", prompt.name]
       },
       description: `${prompt.description || 'No description available'}\n\nPrompt: ${prompt.name}\n\nThis request executes the prompt through the MCP Bridge API.\n\n${generateArgumentDocumentation(prompt.arguments)}`
