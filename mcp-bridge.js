@@ -1446,9 +1446,9 @@ app.post('/generate-postman', async (req, res) => {
         collection: postmanCollection,
         metadata: {
           serverUrl: serverUrl || serverCommand,
-          toolsCount: parseInt(tools.length),
-          resourcesCount: parseInt(resources.length),
-          promptsCount: parseInt(prompts.length),
+          toolsCount: Number(tools.length),
+          resourcesCount: Number(resources.length),
+          promptsCount: Number(prompts.length),
           generatedAt: new Date().toISOString()
         }
       });
@@ -1479,11 +1479,41 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
   const collectionName = `MCP Server: ${serverIdentifier}`;
   const bridgeBaseUrl = 'https://mcp-bridge-api-main.onrender.com';
   
+  // Determine appropriate server ID based on server type and URL
+  let serverId = 'your-server-id';
+  
+  if (serverConfig.url) {
+    // For HTTP/SSE servers, try to extract a meaningful ID from URL
+    if (serverConfig.url.includes('math')) {
+      serverId = 'math-server';
+    } else if (serverConfig.url.includes('filesystem')) {
+      serverId = 'filesystem-server';
+    } else {
+      // Generate a generic ID from the URL
+      const url = new URL(serverConfig.url);
+      const hostname = url.hostname.replace(/[^a-zA-Z0-9]/g, '-');
+      serverId = `${hostname}-server`;
+    }
+  } else if (serverConfig.command) {
+    // For stdio servers, generate ID from command
+    if (serverConfig.command.includes('filesystem')) {
+      serverId = 'filesystem-server';
+    } else if (serverConfig.args && serverConfig.args.some(arg => arg.includes('filesystem'))) {
+      serverId = 'filesystem-server';
+    } else if (serverConfig.args && serverConfig.args.some(arg => arg.includes('everything'))) {
+      serverId = 'everything-server';
+    } else {
+      // Generate generic ID from command
+      const cmdName = serverConfig.command.split('/').pop().replace(/[^a-zA-Z0-9]/g, '-');
+      serverId = `${cmdName}-server`;
+    }
+  }
+  
   // Collection info
   const collection = {
     info: {
       name: collectionName,
-      description: `Auto-generated Postman collection for MCP server: ${serverIdentifier}\n\nGenerated on: ${new Date().toISOString()}\n\nThis collection contains all discovered tools, resources, and prompts from the MCP server.\n\nAll requests go through the MCP Bridge API for proper integration.`,
+      description: `Auto-generated Postman collection for MCP server: ${serverIdentifier}\n\nGenerated on: ${new Date().toISOString()}\n\nThis collection contains all discovered tools, resources, and prompts from the MCP server.\n\nAll requests go through the MCP Bridge API for proper integration.\n\nServer ID: ${serverId}`,
       schema: "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     item: [],
@@ -1495,8 +1525,8 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
       },
       {
         key: "server_id",
-        value: "math-server",
-        description: "MCP Server ID in the bridge"
+        value: serverId,
+        description: "MCP Server ID in the bridge (update this to match your actual server ID)"
       }
     ]
   };
@@ -1509,6 +1539,20 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
       description: "Authentication token (if required by bridge)"
     });
   }
+  
+  // Add helpful variables for common parameter values
+  collection.variable.push(
+    {
+      key: "unit",
+      value: "radians",
+      description: "Unit for trigonometric functions (radians or degrees)"
+    },
+    {
+      key: "values",
+      value: "[1, 2, 3, 4, 5]",
+      description: "Array of numbers for statistical functions (JSON format)"
+    }
+  );
   
   // Generate Tools folder
   if (tools.length > 0) {
