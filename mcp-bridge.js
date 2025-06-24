@@ -1446,9 +1446,9 @@ app.post('/generate-postman', async (req, res) => {
         collection: postmanCollection,
         metadata: {
           serverUrl: serverUrl || serverCommand,
-          toolsCount: tools.length,
-          resourcesCount: resources.length,
-          promptsCount: prompts.length,
+          toolsCount: parseInt(tools.length),
+          resourcesCount: parseInt(resources.length),
+          promptsCount: parseInt(prompts.length),
           generatedAt: new Date().toISOString()
         }
       });
@@ -1477,31 +1477,36 @@ app.post('/generate-postman', async (req, res) => {
 // Helper function to generate Postman collection
 function generatePostmanCollection(serverIdentifier, tools, resources, prompts, serverConfig) {
   const collectionName = `MCP Server: ${serverIdentifier}`;
-  const baseUrl = serverConfig.url || '{{mcp_server_url}}';
+  const bridgeBaseUrl = 'https://mcp-bridge-api-main.onrender.com';
   
   // Collection info
   const collection = {
     info: {
       name: collectionName,
-      description: `Auto-generated Postman collection for MCP server: ${serverIdentifier}\n\nGenerated on: ${new Date().toISOString()}\n\nThis collection contains all discovered tools, resources, and prompts from the MCP server.`,
+      description: `Auto-generated Postman collection for MCP server: ${serverIdentifier}\n\nGenerated on: ${new Date().toISOString()}\n\nThis collection contains all discovered tools, resources, and prompts from the MCP server.\n\nAll requests go through the MCP Bridge API for proper integration.`,
       schema: "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     item: [],
     variable: [
       {
-        key: "mcp_server_url",
-        value: serverConfig.url || "http://localhost:3000",
-        description: "Base URL for the MCP server"
+        key: "mcp_bridge_url",
+        value: bridgeBaseUrl,
+        description: "Base URL for the MCP Bridge API"
+      },
+      {
+        key: "server_id",
+        value: "math-server",
+        description: "MCP Server ID in the bridge"
       }
     ]
   };
   
-  // Add auth token variable if provided
+  // Add auth token variable if provided (for future use)
   if (serverConfig.authToken) {
     collection.variable.push({
       key: "auth_token",
       value: serverConfig.authToken,
-      description: "Authentication token for the MCP server"
+      description: "Authentication token (if required by bridge)"
     });
   }
   
@@ -1510,7 +1515,7 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
     const toolsFolder = {
       name: "Tools",
       description: `MCP Tools (${tools.length} available)`,
-      item: tools.map(tool => generateToolRequest(tool, baseUrl))
+      item: tools.map(tool => generateToolRequest(tool, bridgeBaseUrl))
     };
     collection.item.push(toolsFolder);
   }
@@ -1520,7 +1525,7 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
     const resourcesFolder = {
       name: "Resources",
       description: `MCP Resources (${resources.length} available)`,
-      item: resources.map(resource => generateResourceRequest(resource, baseUrl))
+      item: resources.map(resource => generateResourceRequest(resource, bridgeBaseUrl))
     };
     collection.item.push(resourcesFolder);
   }
@@ -1530,7 +1535,7 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
     const promptsFolder = {
       name: "Prompts",
       description: `MCP Prompts (${prompts.length} available)`,
-      item: prompts.map(prompt => generatePromptRequest(prompt, baseUrl))
+      item: prompts.map(prompt => generatePromptRequest(prompt, bridgeBaseUrl))
     };
     collection.item.push(promptsFolder);
   }
@@ -1538,78 +1543,66 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
   // Add general MCP operations folder
   const generalFolder = {
     name: "General MCP Operations",
-    description: "Standard MCP protocol operations",
+    description: "Standard MCP Bridge API operations",
     item: [
       {
         name: "List All Tools",
         request: {
-          method: "POST",
+          method: "GET",
           header: [
-            { key: "Content-Type", value: "application/json" },
-            ...(serverConfig.authToken ? [{ key: "Authorization", value: "Bearer {{auth_token}}" }] : [])
+            { key: "Content-Type", value: "application/json" }
           ],
-          body: {
-            mode: "raw",
-            raw: JSON.stringify({
-              jsonrpc: "2.0",
-              id: 1,
-              method: "tools/list"
-            }, null, 2)
-          },
           url: {
-            raw: `${baseUrl}/mcp`,
-            host: [baseUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '')],
-            path: ["mcp"]
+            raw: `{{mcp_bridge_url}}/servers/{{server_id}}/tools`,
+            host: ["{{mcp_bridge_url}}"],
+            path: ["servers", "{{server_id}}", "tools"]
           },
-          description: "List all available tools on the MCP server"
+          description: "List all available tools on the MCP server through the bridge"
         }
       },
       {
         name: "List All Resources",
         request: {
-          method: "POST",
+          method: "GET",
           header: [
-            { key: "Content-Type", value: "application/json" },
-            ...(serverConfig.authToken ? [{ key: "Authorization", value: "Bearer {{auth_token}}" }] : [])
+            { key: "Content-Type", value: "application/json" }
           ],
-          body: {
-            mode: "raw",
-            raw: JSON.stringify({
-              jsonrpc: "2.0",
-              id: 2,
-              method: "resources/list"
-            }, null, 2)
-          },
           url: {
-            raw: `${baseUrl}/mcp`,
-            host: [baseUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '')],
-            path: ["mcp"]
+            raw: `{{mcp_bridge_url}}/servers/{{server_id}}/resources`,
+            host: ["{{mcp_bridge_url}}"],
+            path: ["servers", "{{server_id}}", "resources"]
           },
-          description: "List all available resources on the MCP server"
+          description: "List all available resources on the MCP server through the bridge"
         }
       },
       {
         name: "List All Prompts",
         request: {
-          method: "POST",
+          method: "GET",
           header: [
-            { key: "Content-Type", value: "application/json" },
-            ...(serverConfig.authToken ? [{ key: "Authorization", value: "Bearer {{auth_token}}" }] : [])
+            { key: "Content-Type", value: "application/json" }
           ],
-          body: {
-            mode: "raw",
-            raw: JSON.stringify({
-              jsonrpc: "2.0",
-              id: 3,
-              method: "prompts/list"
-            }, null, 2)
-          },
           url: {
-            raw: `${baseUrl}/mcp`,
-            host: [baseUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '')],
-            path: ["mcp"]
+            raw: `{{mcp_bridge_url}}/servers/{{server_id}}/prompts`,
+            host: ["{{mcp_bridge_url}}"],
+            path: ["servers", "{{server_id}}", "prompts"]
           },
-          description: "List all available prompts on the MCP server"
+          description: "List all available prompts on the MCP server through the bridge"
+        }
+      },
+      {
+        name: "Server Health Check",
+        request: {
+          method: "GET",
+          header: [
+            { key: "Content-Type", value: "application/json" }
+          ],
+          url: {
+            raw: `{{mcp_bridge_url}}/health`,
+            host: ["{{mcp_bridge_url}}"],
+            path: ["health"]
+          },
+          description: "Check the health and status of all connected MCP servers"
         }
       }
     ]
@@ -1620,7 +1613,7 @@ function generatePostmanCollection(serverIdentifier, tools, resources, prompts, 
 }
 
 // Helper function to generate tool request
-function generateToolRequest(tool, baseUrl) {
+function generateToolRequest(tool, bridgeBaseUrl) {
   const parameters = generateExampleParameters(tool.inputSchema);
   
   return {
@@ -1628,64 +1621,43 @@ function generateToolRequest(tool, baseUrl) {
     request: {
       method: "POST",
       header: [
-        { key: "Content-Type", value: "application/json" },
-        { key: "Authorization", value: "Bearer {{auth_token}}", disabled: true }
+        { key: "Content-Type", value: "application/json" }
       ],
       body: {
         mode: "raw",
-        raw: JSON.stringify({
-          jsonrpc: "2.0",
-          id: `{{$randomInt}}`,
-          method: "tools/call",
-          params: {
-            name: tool.name,
-            arguments: parameters
-          }
-        }, null, 2)
+        raw: JSON.stringify(parameters, null, 2)
       },
       url: {
-        raw: `${baseUrl}/mcp`,
-        host: [baseUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '')],
-        path: ["mcp"]
+        raw: `{{mcp_bridge_url}}/servers/{{server_id}}/tools/${tool.name}`,
+        host: ["{{mcp_bridge_url}}"],
+        path: ["servers", "{{server_id}}", "tools", tool.name]
       },
-      description: `${tool.description || 'No description available'}\n\nTool: ${tool.name}\n\n${generateParameterDocumentation(tool.inputSchema)}`
+      description: `${tool.description || 'No description available'}\n\nTool: ${tool.name}\n\nThis request calls the MCP Bridge API which will execute the tool on the connected MCP server.\n\n${generateParameterDocumentation(tool.inputSchema)}`
     }
   };
 }
 
 // Helper function to generate resource request
-function generateResourceRequest(resource, baseUrl) {
+function generateResourceRequest(resource, bridgeBaseUrl) {
   return {
     name: resource.name || resource.uri,
     request: {
-      method: "POST",
+      method: "GET",
       header: [
-        { key: "Content-Type", value: "application/json" },
-        { key: "Authorization", value: "Bearer {{auth_token}}", disabled: true }
+        { key: "Content-Type", value: "application/json" }
       ],
-      body: {
-        mode: "raw",
-        raw: JSON.stringify({
-          jsonrpc: "2.0",
-          id: `{{$randomInt}}`,
-          method: "resources/read",
-          params: {
-            uri: resource.uri
-          }
-        }, null, 2)
-      },
       url: {
-        raw: `${baseUrl}/mcp`,
-        host: [baseUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '')],
-        path: ["mcp"]
+        raw: `{{mcp_bridge_url}}/servers/{{server_id}}/resources/${encodeURIComponent(resource.uri)}`,
+        host: ["{{mcp_bridge_url}}"],
+        path: ["servers", "{{server_id}}", "resources", encodeURIComponent(resource.uri)]
       },
-      description: `${resource.description || 'No description available'}\n\nResource URI: ${resource.uri}\n\nMime Type: ${resource.mimeType || 'Unknown'}`
+      description: `${resource.description || 'No description available'}\n\nResource URI: ${resource.uri}\n\nMime Type: ${resource.mimeType || 'Unknown'}\n\nThis request gets the resource through the MCP Bridge API.`
     }
   };
 }
 
 // Helper function to generate prompt request
-function generatePromptRequest(prompt, baseUrl) {
+function generatePromptRequest(prompt, bridgeBaseUrl) {
   const arguments = generateExampleArguments(prompt.arguments);
   
   return {
@@ -1693,27 +1665,18 @@ function generatePromptRequest(prompt, baseUrl) {
     request: {
       method: "POST",
       header: [
-        { key: "Content-Type", value: "application/json" },
-        { key: "Authorization", value: "Bearer {{auth_token}}", disabled: true }
+        { key: "Content-Type", value: "application/json" }
       ],
       body: {
         mode: "raw",
-        raw: JSON.stringify({
-          jsonrpc: "2.0",
-          id: `{{$randomInt}}`,
-          method: "prompts/get",
-          params: {
-            name: prompt.name,
-            arguments: arguments
-          }
-        }, null, 2)
+        raw: JSON.stringify(arguments, null, 2)
       },
       url: {
-        raw: `${baseUrl}/mcp`,
-        host: [baseUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '')],
-        path: ["mcp"]
+        raw: `{{mcp_bridge_url}}/servers/{{server_id}}/prompts/${prompt.name}`,
+        host: ["{{mcp_bridge_url}}"],
+        path: ["servers", "{{server_id}}", "prompts", prompt.name]
       },
-      description: `${prompt.description || 'No description available'}\n\nPrompt: ${prompt.name}\n\n${generateArgumentDocumentation(prompt.arguments)}`
+      description: `${prompt.description || 'No description available'}\n\nPrompt: ${prompt.name}\n\nThis request executes the prompt through the MCP Bridge API.\n\n${generateArgumentDocumentation(prompt.arguments)}`
     }
   };
 }

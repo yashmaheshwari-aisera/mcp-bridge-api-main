@@ -1,0 +1,664 @@
+{
+  "info": {
+    "name": "MCP Server: https://mcp-proxy.yashmahe2021.workers.dev/mcp",
+    "description": "Auto-generated Postman collection for MCP server: https://mcp-proxy.yashmahe2021.workers.dev/mcp\n\nGenerated on: 2025-06-24T17:47:41.450Z\n\nThis collection contains all discovered tools, resources, and prompts from the MCP server.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Tools",
+      "description": "MCP Tools (18 available)",
+      "item": [
+        {
+          "name": "add",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$randomInt}}\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"add\",\n    \"arguments\": {\n      \"a\": 42,\n      \"b\": 42\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "https://mcp-proxy.yashmahe2021.workers.dev/mcp/mcp",
+              "host": [
+                "mcp-proxy.yashmahe2021.workers.dev"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "Add two numbers\n\nTool: add\n\nParameters:\n- a (number) (required): First number\n- b (number) (required): Second number\n"
+          }
+        },
+        {
+          "name": "subtract",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$randomInt}}\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"subtract\",\n    \"arguments\": {\n      \"a\": 42,\n      \"b\": 42\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "https://mcp-proxy.yashmahe2021.workers.dev/mcp/mcp",
+              "host": [
+                "mcp-proxy.yashmahe2021.workers.dev"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "Subtract two numbers\n\nTool: subtract\n\nParameters:\n- a (number) (required): First number\n- b (number) (required): Second number\n"
+          }
+        },
+        {
+          "name": "multiply",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$randomInt}}\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"multiply\",\n    \"arguments\": {\n      \"a\": 42,\n      \"b\": 42\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "https://mcp-proxy.yashmahe2021.workers.dev/mcp/mcp",
+              "host": [
+                "mcp-proxy.yashmahe2021.workers.dev"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "Multiply two numbers\n\nTool: multiply\n\nParameters:\n- a (number) (required): First number\n- b (number) (required): Second number\n"
+          }
+        },
+        {
+          "name": "divide",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$randomInt}}\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"divide\",\n    \"arguments\": {\n      \"a\": 42,\n      \"b\": 42\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "https://mcp-proxy.yashmahe2021.workers.dev/mcp/mcp",
+              "host": [
+                "mcp-proxy.yashmahe2021.workers.dev"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "Divide two numbers\n\nTool: divide\n\nParameters:\n- a (number) (required): Dividend\n- b (number) (required): Divisor\n"
+          }
+        },
+        {
+          "name": "power",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$randomInt}}\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"power\",\n    \"arguments\": {\n      \"base\": 42,\n      \"exponent\": 42\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "https://mcp-proxy.yashmahe2021.workers.dev/mcp/mcp",
+              "host": [
+                "mcp-proxy.yashmahe2021.workers.dev"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "Raise base to exponent power\n\nTool: power\n\nParameters:\n- base (number) (required): Base number\n- exponent (number) (required): Exponent\n"
+          }
+        },
+        {
+          "name": "square_root",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$randomInt}}\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"square_root\",\n    \"arguments\": {\n      \"value\": 42\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "https://mcp-proxy.yashmahe2021.workers.dev/mcp/mcp",
+              "host": [
+                "mcp-proxy.yashmahe2021.workers.dev"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "Calculate square root (supports negative numbers with complex result)\n\nTool: square_root\n\nParameters:\n- value (number) (required): Number to find square root of\n"
+          }
+        },
+        {
+          "name": "factorial",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$randomInt}}\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"factorial\",\n    \"arguments\": {\n      \"value\": 42\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "https://mcp-proxy.yashmahe2021.workers.dev/mcp/mcp",
+              "host": [
+                "mcp-proxy.yashmahe2021.workers.dev"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "Calculate factorial of a non-negative integer\n\nTool: factorial\n\nParameters:\n- value (integer) (required): Non-negative integer\n"
+          }
+        },
+        {
+          "name": "sin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$randomInt}}\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"sin\",\n    \"arguments\": {\n      \"angle\": 42,\n      \"unit\": \"{{unit}}\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "https://mcp-proxy.yashmahe2021.workers.dev/mcp/mcp",
+              "host": [
+                "mcp-proxy.yashmahe2021.workers.dev"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "Calculate sine of an angle\n\nTool: sin\n\nParameters:\n- angle (number) (required): Angle value\n- unit (string) (optional): Unit of angle measurement\n"
+          }
+        },
+        {
+          "name": "cos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$randomInt}}\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"cos\",\n    \"arguments\": {\n      \"angle\": 42,\n      \"unit\": \"{{unit}}\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "https://mcp-proxy.yashmahe2021.workers.dev/mcp/mcp",
+              "host": [
+                "mcp-proxy.yashmahe2021.workers.dev"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "Calculate cosine of an angle\n\nTool: cos\n\nParameters:\n- angle (number) (required): Angle value\n- unit (string) (optional): Unit of angle measurement\n"
+          }
+        },
+        {
+          "name": "tan",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$randomInt}}\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"tan\",\n    \"arguments\": {\n      \"angle\": 42,\n      \"unit\": \"{{unit}}\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "https://mcp-proxy.yashmahe2021.workers.dev/mcp/mcp",
+              "host": [
+                "mcp-proxy.yashmahe2021.workers.dev"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "Calculate tangent of an angle\n\nTool: tan\n\nParameters:\n- angle (number) (required): Angle value\n- unit (string) (optional): Unit of angle measurement\n"
+          }
+        },
+        {
+          "name": "log",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$randomInt}}\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"log\",\n    \"arguments\": {\n      \"value\": 42,\n      \"base\": 42\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "https://mcp-proxy.yashmahe2021.workers.dev/mcp/mcp",
+              "host": [
+                "mcp-proxy.yashmahe2021.workers.dev"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "Calculate logarithm with specified base\n\nTool: log\n\nParameters:\n- value (number) (required): Value to take logarithm of\n- base (number) (optional): Base of logarithm\n"
+          }
+        },
+        {
+          "name": "ln",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$randomInt}}\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"ln\",\n    \"arguments\": {\n      \"value\": 42\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "https://mcp-proxy.yashmahe2021.workers.dev/mcp/mcp",
+              "host": [
+                "mcp-proxy.yashmahe2021.workers.dev"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "Calculate natural logarithm\n\nTool: ln\n\nParameters:\n- value (number) (required): Value to take natural logarithm of\n"
+          }
+        },
+        {
+          "name": "exp",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$randomInt}}\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"exp\",\n    \"arguments\": {\n      \"value\": 42\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "https://mcp-proxy.yashmahe2021.workers.dev/mcp/mcp",
+              "host": [
+                "mcp-proxy.yashmahe2021.workers.dev"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "Calculate exponential function (e^x)\n\nTool: exp\n\nParameters:\n- value (number) (required): Exponent value\n"
+          }
+        },
+        {
+          "name": "quadratic",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$randomInt}}\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"quadratic\",\n    \"arguments\": {\n      \"a\": 42,\n      \"b\": 42,\n      \"c\": 42\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "https://mcp-proxy.yashmahe2021.workers.dev/mcp/mcp",
+              "host": [
+                "mcp-proxy.yashmahe2021.workers.dev"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "Solve quadratic equation ax\u00b2 + bx + c = 0\n\nTool: quadratic\n\nParameters:\n- a (number) (required): Coefficient of x\u00b2\n- b (number) (required): Coefficient of x\n- c (number) (required): Constant term\n"
+          }
+        },
+        {
+          "name": "distance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$randomInt}}\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"distance\",\n    \"arguments\": {\n      \"x1\": 42,\n      \"y1\": 42,\n      \"x2\": 42,\n      \"y2\": 42\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "https://mcp-proxy.yashmahe2021.workers.dev/mcp/mcp",
+              "host": [
+                "mcp-proxy.yashmahe2021.workers.dev"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "Calculate distance between two points\n\nTool: distance\n\nParameters:\n- x1 (number) (required): X coordinate of first point\n- y1 (number) (required): Y coordinate of first point\n- x2 (number) (required): X coordinate of second point\n- y2 (number) (required): Y coordinate of second point\n"
+          }
+        },
+        {
+          "name": "mean",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$randomInt}}\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"mean\",\n    \"arguments\": {\n      \"values\": \"{{values}}\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "https://mcp-proxy.yashmahe2021.workers.dev/mcp/mcp",
+              "host": [
+                "mcp-proxy.yashmahe2021.workers.dev"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "Calculate arithmetic mean of a list of numbers\n\nTool: mean\n\nParameters:\n- values (any) (required): Array of numbers or JSON array string\n"
+          }
+        },
+        {
+          "name": "median",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$randomInt}}\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"median\",\n    \"arguments\": {\n      \"values\": \"{{values}}\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "https://mcp-proxy.yashmahe2021.workers.dev/mcp/mcp",
+              "host": [
+                "mcp-proxy.yashmahe2021.workers.dev"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "Calculate median of a list of numbers\n\nTool: median\n\nParameters:\n- values (any) (required): Array of numbers or JSON array string\n"
+          }
+        },
+        {
+          "name": "complex_add",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"{{$randomInt}}\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"complex_add\",\n    \"arguments\": {\n      \"a_real\": 42,\n      \"a_imag\": 42,\n      \"b_real\": 42,\n      \"b_imag\": 42\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "https://mcp-proxy.yashmahe2021.workers.dev/mcp/mcp",
+              "host": [
+                "mcp-proxy.yashmahe2021.workers.dev"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "Add two complex numbers\n\nTool: complex_add\n\nParameters:\n- a_real (number) (required): Real part of first complex number\n- a_imag (number) (required): Imaginary part of first complex number\n- b_real (number) (required): Real part of second complex number\n- b_imag (number) (required): Imaginary part of second complex number\n"
+          }
+        }
+      ]
+    },
+    {
+      "name": "General MCP Operations",
+      "description": "Standard MCP protocol operations",
+      "item": [
+        {
+          "name": "List All Tools",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 1,\n  \"method\": \"tools/list\"\n}"
+            },
+            "url": {
+              "raw": "https://mcp-proxy.yashmahe2021.workers.dev/mcp/mcp",
+              "host": [
+                "mcp-proxy.yashmahe2021.workers.dev"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "List all available tools on the MCP server"
+          }
+        },
+        {
+          "name": "List All Resources",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 2,\n  \"method\": \"resources/list\"\n}"
+            },
+            "url": {
+              "raw": "https://mcp-proxy.yashmahe2021.workers.dev/mcp/mcp",
+              "host": [
+                "mcp-proxy.yashmahe2021.workers.dev"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "List all available resources on the MCP server"
+          }
+        },
+        {
+          "name": "List All Prompts",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 3,\n  \"method\": \"prompts/list\"\n}"
+            },
+            "url": {
+              "raw": "https://mcp-proxy.yashmahe2021.workers.dev/mcp/mcp",
+              "host": [
+                "mcp-proxy.yashmahe2021.workers.dev"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "List all available prompts on the MCP server"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "mcp_server_url",
+      "value": "https://mcp-proxy.yashmahe2021.workers.dev/mcp",
+      "description": "Base URL for the MCP server"
+    }
+  ]
+}
