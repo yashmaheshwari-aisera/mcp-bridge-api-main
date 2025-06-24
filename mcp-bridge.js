@@ -9,6 +9,7 @@
 // Import dependencies
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -41,8 +42,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
+app.use(compression()); // Enable gzip compression for large responses
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Increase JSON limit for large collections
 app.use(morgan('dev'));
 
 console.log('Middleware configured');
@@ -1439,16 +1441,22 @@ app.post('/generate-postman', async (req, res) => {
       // Generate Postman collection
       const postmanCollection = generatePostmanCollection(serverUrl || serverCommand, tools, resources, prompts, serverConfig);
       
-      console.log('Postman collection generated successfully');
+      console.log(`Postman collection generated successfully:`, {
+        toolsCount: tools.length,
+        resourcesCount: resources.length,
+        promptsCount: prompts.length,
+        collectionFolders: postmanCollection.item.length,
+        collectionSize: JSON.stringify(postmanCollection).length
+      });
       
       res.json({
         success: true,
         collection: postmanCollection,
         metadata: {
           serverUrl: serverUrl || serverCommand,
-          toolsCount: Number(tools.length),
-          resourcesCount: Number(resources.length),
-          promptsCount: Number(prompts.length),
+          toolsCount: parseInt(tools.length, 10),
+          resourcesCount: parseInt(resources.length, 10),
+          promptsCount: parseInt(prompts.length, 10),
           generatedAt: new Date().toISOString()
         }
       });

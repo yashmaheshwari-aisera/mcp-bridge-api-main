@@ -1,0 +1,32 @@
+{"metadata":{"serverUrl":"https:\/\/mcp-proxy.yashmahe2021.workers.dev\/mcp","toolsCount":18.0,"resourcesCount":0.0,"promptsCount":0.0,"generatedAt":"2025-06-24T18:15:47.809Z"},"success":true,"collection":{"info":{"name":"MCP Server: https:\/\/mcp-proxy.yashmahe2021.workers.dev\/mcp","description":"Auto-generated Postman collection for MCP server integration with Aisera.
+
+Server: https:\/\/mcp-proxy.yashmahe2021.workers.dev\/mcp
+Generated: 2025-06-24T18:15:47.808Z
+Server ID: math-server
+
+🔧 SETUP INSTRUCTIONS:
+1. Import this collection into Postman or Aisera
+2. Update the 'server_id' environment variable if needed
+3. All requests use the MCP Bridge API for seamless integration
+
+📁 COLLECTION CONTENTS:
+• 18 Tools - Execute MCP server functions
+• 0 Resources - Access MCP server data
+• 0 Prompts - Use MCP server templates
+• General Operations - List tools, resources, and health checks
+
+🌐 All requests go through: https:\/\/mcp-bridge-api-main.onrender.com
+
+Ready for Aisera integration!","schema":"https:\/\/schema.getpostman.com\/json\/collection\/v2.1.0\/collection.json"},"item":[{"name":"Tools","description":"MCP Tools (18 available)","item":[{"name":"add","request":{"method":"POST","header":[{"key":"Content-Type","value":"application\/json"}],"body":{"mode":"raw","raw":"{
+ \"a\": 42,
+ \"b\": 42
+}"},"url":{"raw":"{{mcp_bridge_url}}\/servers\/{{server_id}}\/tools\/add","host":["{{mcp_bridge_url}}"],"path":["servers","{{server_id}}","tools","add"]},"description":"Add two numbers
+
+Tool: add
+
+This request calls the MCP Bridge API which will execute the tool on the connected MCP server.
+
+Parameters:
+- a (number) (required): First number
+- b (number) (required): Second number
+"}}]}],"variable":[{"key":"mcp_bridge_url","value":"https:\/\/mcp-bridge-api-main.onrender.com","description":"Base URL for the MCP Bridge API"},{"key":"server_id","value":"math-server","description":"MCP Server ID in the bridge (update this to match your actual server ID)"},{"key":"unit","value":"radians","description":"Unit for trigonometric functions (radians or degrees)"},{"key":"values","value":"[1, 2, 3, 4, 5]","description":"Array of numbers for statistical functions (JSON format)"}]}}
