@@ -1376,12 +1376,12 @@ app.post('/servers/:serverId/prompts/:promptName', async (req, res) => {
 
 // Test endpoint for long-running operations
 app.post('/test/timeout/:minutes', (req, res) => {
-  const minutes = parseInt(req.params.minutes);
+  const minutes = parseFloat(req.params.minutes);
   const maxMinutes = 95; // Stay under 100 minute limit
   
-  if (isNaN(minutes) || minutes < 1 || minutes > maxMinutes) {
+  if (isNaN(minutes) || minutes < 0.01 || minutes > maxMinutes) {
     return res.status(400).json({ 
-      error: `Invalid minutes. Must be between 1 and ${maxMinutes}` 
+      error: `Invalid minutes. Must be between 0.01 and ${maxMinutes}` 
     });
   }
   

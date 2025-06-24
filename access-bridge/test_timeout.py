@@ -90,11 +90,11 @@ def test_long_timeout(minutes=20, local=False):
 
 def quick_test():
     """Quick test to verify the endpoint works with short duration"""
-    print("🚀 Quick Test: 10-second timeout")
+    print("🚀 Quick Test: 1-minute timeout")
     print("=" * 40)
     
     try:
-        response = requests.post(f"{BRIDGE_URL}/test/timeout/0.17", timeout=30)  # 10 seconds, with 30s client timeout
+        response = requests.post(f"{BRIDGE_URL}/test/timeout/1", timeout=90)  # 1 minute test, with 90s client timeout
         response.raise_for_status()
         result = response.json()
         print("✅ Quick test passed!")
