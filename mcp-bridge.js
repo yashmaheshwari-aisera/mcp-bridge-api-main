@@ -1374,6 +1374,456 @@ app.post('/servers/:serverId/prompts/:promptName', async (req, res) => {
   }
 });
 
+// Generate Postman collection from MCP server
+app.post('/generate-postman', async (req, res) => {
+  console.log('POST /generate-postman');
+  
+  try {
+    const { serverUrl, serverType = 'http', authToken, serverCommand, serverArgs, serverEnv } = req.body;
+    
+    if (!serverUrl && !serverCommand) {
+      return res.status(400).json({
+        error: 'Either serverUrl (for HTTP/SSE) or serverCommand (for stdio) is required'
+      });
+    }
+    
+    console.log(`Generating Postman collection for MCP server: ${serverUrl || serverCommand}`);
+    
+    // Create a temporary server ID for discovery
+    const tempServerId = `temp-${Date.now()}`;
+    let tempServerStarted = false;
+    
+    try {
+      // Determine server configuration based on provided parameters
+      let serverConfig;
+      
+      if (serverUrl) {
+        // HTTP/SSE server configuration
+        serverConfig = {
+          url: serverUrl,
+          type: serverType,
+          ...(authToken && { authToken })
+        };
+      } else {
+        // stdio server configuration
+        serverConfig = {
+          command: serverCommand,
+          args: serverArgs || [],
+          env: serverEnv || {}
+        };
+      }
+      
+      // Temporarily start the server for discovery
+      console.log(`Starting temporary server for discovery: ${tempServerId}`);
+      await startServer(tempServerId, serverConfig);
+      tempServerStarted = true;
+      
+      // Wait a moment for server to initialize
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Discover server capabilities
+      console.log('Discovering server capabilities...');
+      
+      const [toolsResult, resourcesResult, promptsResult] = await Promise.allSettled([
+        sendMCPRequest(tempServerId, 'tools/list').catch(e => ({ tools: [] })),
+        sendMCPRequest(tempServerId, 'resources/list').catch(e => ({ resources: [] })),
+        sendMCPRequest(tempServerId, 'prompts/list').catch(e => ({ prompts: [] }))
+      ]);
+      
+      const tools = toolsResult.status === 'fulfilled' ? (toolsResult.value.tools || []) : [];
+      const resources = resourcesResult.status === 'fulfilled' ? (resourcesResult.value.resources || []) : [];
+      const prompts = promptsResult.status === 'fulfilled' ? (promptsResult.value.prompts || []) : [];
+      
+      console.log(`Discovered: ${tools.length} tools, ${resources.length} resources, ${prompts.length} prompts`);
+      
+      // Generate Postman collection
+      const postmanCollection = generatePostmanCollection(serverUrl || serverCommand, tools, resources, prompts, serverConfig);
+      
+      console.log('Postman collection generated successfully');
+      
+      res.json({
+        success: true,
+        collection: postmanCollection,
+        metadata: {
+          serverUrl: serverUrl || serverCommand,
+          toolsCount: tools.length,
+          resourcesCount: resources.length,
+          promptsCount: prompts.length,
+          generatedAt: new Date().toISOString()
+        }
+      });
+      
+    } finally {
+      // Clean up temporary server
+      if (tempServerStarted) {
+        try {
+          console.log(`Cleaning up temporary server: ${tempServerId}`);
+          await shutdownServer(tempServerId);
+        } catch (cleanupError) {
+          console.error(`Error cleaning up temporary server: ${cleanupError.message}`);
+        }
+      }
+    }
+    
+  } catch (error) {
+    console.error('Error generating Postman collection:', error);
+    res.status(500).json({
+      error: 'Failed to generate Postman collection',
+      details: error.message
+    });
+  }
+});
+
+// Helper function to generate Postman collection
+function generatePostmanCollection(serverIdentifier, tools, resources, prompts, serverConfig) {
+  const collectionName = `MCP Server: ${serverIdentifier}`;
+  const baseUrl = serverConfig.url || '{{mcp_server_url}}';
+  
+  // Collection info
+  const collection = {
+    info: {
+      name: collectionName,
+      description: `Auto-generated Postman collection for MCP server: ${serverIdentifier}\n\nGenerated on: ${new Date().toISOString()}\n\nThis collection contains all discovered tools, resources, and prompts from the MCP server.`,
+      schema: "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    item: [],
+    variable: [
+      {
+        key: "mcp_server_url",
+        value: serverConfig.url || "http://localhost:3000",
+        description: "Base URL for the MCP server"
+      }
+    ]
+  };
+  
+  // Add auth token variable if provided
+  if (serverConfig.authToken) {
+    collection.variable.push({
+      key: "auth_token",
+      value: serverConfig.authToken,
+      description: "Authentication token for the MCP server"
+    });
+  }
+  
+  // Generate Tools folder
+  if (tools.length > 0) {
+    const toolsFolder = {
+      name: "Tools",
+      description: `MCP Tools (${tools.length} available)`,
+      item: tools.map(tool => generateToolRequest(tool, baseUrl))
+    };
+    collection.item.push(toolsFolder);
+  }
+  
+  // Generate Resources folder
+  if (resources.length > 0) {
+    const resourcesFolder = {
+      name: "Resources",
+      description: `MCP Resources (${resources.length} available)`,
+      item: resources.map(resource => generateResourceRequest(resource, baseUrl))
+    };
+    collection.item.push(resourcesFolder);
+  }
+  
+  // Generate Prompts folder
+  if (prompts.length > 0) {
+    const promptsFolder = {
+      name: "Prompts",
+      description: `MCP Prompts (${prompts.length} available)`,
+      item: prompts.map(prompt => generatePromptRequest(prompt, baseUrl))
+    };
+    collection.item.push(promptsFolder);
+  }
+  
+  // Add general MCP operations folder
+  const generalFolder = {
+    name: "General MCP Operations",
+    description: "Standard MCP protocol operations",
+    item: [
+      {
+        name: "List All Tools",
+        request: {
+          method: "POST",
+          header: [
+            { key: "Content-Type", value: "application/json" },
+            ...(serverConfig.authToken ? [{ key: "Authorization", value: "Bearer {{auth_token}}" }] : [])
+          ],
+          body: {
+            mode: "raw",
+            raw: JSON.stringify({
+              jsonrpc: "2.0",
+              id: 1,
+              method: "tools/list"
+            }, null, 2)
+          },
+          url: {
+            raw: `${baseUrl}/mcp`,
+            host: [baseUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '')],
+            path: ["mcp"]
+          },
+          description: "List all available tools on the MCP server"
+        }
+      },
+      {
+        name: "List All Resources",
+        request: {
+          method: "POST",
+          header: [
+            { key: "Content-Type", value: "application/json" },
+            ...(serverConfig.authToken ? [{ key: "Authorization", value: "Bearer {{auth_token}}" }] : [])
+          ],
+          body: {
+            mode: "raw",
+            raw: JSON.stringify({
+              jsonrpc: "2.0",
+              id: 2,
+              method: "resources/list"
+            }, null, 2)
+          },
+          url: {
+            raw: `${baseUrl}/mcp`,
+            host: [baseUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '')],
+            path: ["mcp"]
+          },
+          description: "List all available resources on the MCP server"
+        }
+      },
+      {
+        name: "List All Prompts",
+        request: {
+          method: "POST",
+          header: [
+            { key: "Content-Type", value: "application/json" },
+            ...(serverConfig.authToken ? [{ key: "Authorization", value: "Bearer {{auth_token}}" }] : [])
+          ],
+          body: {
+            mode: "raw",
+            raw: JSON.stringify({
+              jsonrpc: "2.0",
+              id: 3,
+              method: "prompts/list"
+            }, null, 2)
+          },
+          url: {
+            raw: `${baseUrl}/mcp`,
+            host: [baseUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '')],
+            path: ["mcp"]
+          },
+          description: "List all available prompts on the MCP server"
+        }
+      }
+    ]
+  };
+  collection.item.push(generalFolder);
+  
+  return collection;
+}
+
+// Helper function to generate tool request
+function generateToolRequest(tool, baseUrl) {
+  const parameters = generateExampleParameters(tool.inputSchema);
+  
+  return {
+    name: tool.name,
+    request: {
+      method: "POST",
+      header: [
+        { key: "Content-Type", value: "application/json" },
+        { key: "Authorization", value: "Bearer {{auth_token}}", disabled: true }
+      ],
+      body: {
+        mode: "raw",
+        raw: JSON.stringify({
+          jsonrpc: "2.0",
+          id: `{{$randomInt}}`,
+          method: "tools/call",
+          params: {
+            name: tool.name,
+            arguments: parameters
+          }
+        }, null, 2)
+      },
+      url: {
+        raw: `${baseUrl}/mcp`,
+        host: [baseUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '')],
+        path: ["mcp"]
+      },
+      description: `${tool.description || 'No description available'}\n\nTool: ${tool.name}\n\n${generateParameterDocumentation(tool.inputSchema)}`
+    }
+  };
+}
+
+// Helper function to generate resource request
+function generateResourceRequest(resource, baseUrl) {
+  return {
+    name: resource.name || resource.uri,
+    request: {
+      method: "POST",
+      header: [
+        { key: "Content-Type", value: "application/json" },
+        { key: "Authorization", value: "Bearer {{auth_token}}", disabled: true }
+      ],
+      body: {
+        mode: "raw",
+        raw: JSON.stringify({
+          jsonrpc: "2.0",
+          id: `{{$randomInt}}`,
+          method: "resources/read",
+          params: {
+            uri: resource.uri
+          }
+        }, null, 2)
+      },
+      url: {
+        raw: `${baseUrl}/mcp`,
+        host: [baseUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '')],
+        path: ["mcp"]
+      },
+      description: `${resource.description || 'No description available'}\n\nResource URI: ${resource.uri}\n\nMime Type: ${resource.mimeType || 'Unknown'}`
+    }
+  };
+}
+
+// Helper function to generate prompt request
+function generatePromptRequest(prompt, baseUrl) {
+  const arguments = generateExampleArguments(prompt.arguments);
+  
+  return {
+    name: prompt.name,
+    request: {
+      method: "POST",
+      header: [
+        { key: "Content-Type", value: "application/json" },
+        { key: "Authorization", value: "Bearer {{auth_token}}", disabled: true }
+      ],
+      body: {
+        mode: "raw",
+        raw: JSON.stringify({
+          jsonrpc: "2.0",
+          id: `{{$randomInt}}`,
+          method: "prompts/get",
+          params: {
+            name: prompt.name,
+            arguments: arguments
+          }
+        }, null, 2)
+      },
+      url: {
+        raw: `${baseUrl}/mcp`,
+        host: [baseUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '')],
+        path: ["mcp"]
+      },
+      description: `${prompt.description || 'No description available'}\n\nPrompt: ${prompt.name}\n\n${generateArgumentDocumentation(prompt.arguments)}`
+    }
+  };
+}
+
+// Helper function to generate example parameters from JSON schema
+function generateExampleParameters(inputSchema) {
+  if (!inputSchema || !inputSchema.properties) {
+    return {};
+  }
+  
+  const parameters = {};
+  
+  for (const [paramName, paramSchema] of Object.entries(inputSchema.properties)) {
+    parameters[paramName] = generateExampleValue(paramSchema, paramName);
+  }
+  
+  return parameters;
+}
+
+// Helper function to generate example arguments for prompts
+function generateExampleArguments(argumentsArray) {
+  if (!argumentsArray || !Array.isArray(argumentsArray)) {
+    return {};
+  }
+  
+  const arguments = {};
+  
+  for (const arg of argumentsArray) {
+    arguments[arg.name] = generateExampleValueFromArg(arg);
+  }
+  
+  return arguments;
+}
+
+// Helper function to generate example values based on parameter type
+function generateExampleValue(schema, paramName) {
+  const type = schema.type || 'string';
+  const description = schema.description || '';
+  
+  switch (type) {
+    case 'string':
+      if (description.toLowerCase().includes('email')) return 'user@example.com';
+      if (description.toLowerCase().includes('url')) return 'https://example.com';
+      if (description.toLowerCase().includes('path')) return '/path/to/file';
+      if (description.toLowerCase().includes('name')) return 'example_name';
+      return `{{${paramName}}}`;
+      
+    case 'number':
+    case 'integer':
+      return schema.example || 42;
+      
+    case 'boolean':
+      return schema.example !== undefined ? schema.example : true;
+      
+    case 'array':
+      return schema.example || ['example_item'];
+      
+    case 'object':
+      return schema.example || { "key": "value" };
+      
+    default:
+      return `{{${paramName}}}`;
+  }
+}
+
+// Helper function to generate example values for prompt arguments
+function generateExampleValueFromArg(arg) {
+  if (arg.required === false) {
+    return `{{${arg.name}_optional}}`;
+  }
+  return `{{${arg.name}}}`;
+}
+
+// Helper function to generate parameter documentation
+function generateParameterDocumentation(inputSchema) {
+  if (!inputSchema || !inputSchema.properties) {
+    return 'No parameters required.';
+  }
+  
+  let doc = 'Parameters:\n';
+  
+  for (const [paramName, paramSchema] of Object.entries(inputSchema.properties)) {
+    const type = paramSchema.type || 'any';
+    const description = paramSchema.description || 'No description';
+    const required = inputSchema.required && inputSchema.required.includes(paramName) ? ' (required)' : ' (optional)';
+    
+    doc += `- ${paramName} (${type})${required}: ${description}\n`;
+  }
+  
+  return doc;
+}
+
+// Helper function to generate argument documentation for prompts
+function generateArgumentDocumentation(argumentsArray) {
+  if (!argumentsArray || !Array.isArray(argumentsArray) || argumentsArray.length === 0) {
+    return 'No arguments required.';
+  }
+  
+  let doc = 'Arguments:\n';
+  
+  for (const arg of argumentsArray) {
+    const required = arg.required !== false ? ' (required)' : ' (optional)';
+    const description = arg.description || 'No description';
+    
+    doc += `- ${arg.name}${required}: ${description}\n`;
+  }
+  
+  return doc;
+}
+
 // Test endpoint for long-running operations
 app.post('/test/timeout/:minutes', (req, res) => {
   const minutes = parseFloat(req.params.minutes);

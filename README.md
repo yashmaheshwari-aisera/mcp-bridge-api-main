@@ -210,6 +210,100 @@ POST   /servers/:serverId/prompts/:name  # Execute prompt
 
 # Security
 POST   /confirmations/:confirmationId    # Confirm risky operations
+
+# Postman Collection Generation
+POST   /generate-postman                 # Generate Postman collection from MCP server
+```
+
+## 🔧 Postman Collection Generator
+
+The MCP Bridge API includes a powerful `/generate-postman` endpoint that automatically discovers MCP server capabilities and generates ready-to-use Postman collections. This enables seamless integration with workflow automation platforms like Aisera.
+
+### ✨ Key Features
+
+- **Automatic Discovery**: Connects to any MCP server and discovers all tools, resources, and prompts
+- **Multiple Transport Support**: Works with HTTP/SSE and stdio MCP servers
+- **Complete Collection Generation**: Creates organized folders, request templates, and documentation
+- **Smart Parameter Handling**: Generates example values and Postman variables
+- **Authentication Support**: Includes bearer token authentication for secure connections
+- **Aisera Integration Ready**: Perfect for workflow automation platform integration
+
+### 🚀 Usage Examples
+
+#### HTTP/SSE MCP Server
+```bash
+curl -X POST https://mcp-bridge-api-main.onrender.com/generate-postman \
+  -H "Content-Type: application/json" \
+  -d '{
+    "serverUrl": "https://your-mcp-server.com",
+    "serverType": "http",
+    "authToken": "your-auth-token"
+  }'
+```
+
+#### stdio MCP Server
+```bash
+curl -X POST https://mcp-bridge-api-main.onrender.com/generate-postman \
+  -H "Content-Type: application/json" \
+  -d '{
+    "serverCommand": "npx",
+    "serverArgs": ["@modelcontextprotocol/server-filesystem", "/safe/directory"],
+    "serverEnv": {
+      "DEBUG": "true"
+    }
+  }'
+```
+
+### 📋 Generated Collection Structure
+
+The generated Postman collection includes:
+
+- **Tools Folder**: Individual requests for each MCP tool with parameter templates
+- **Resources Folder**: Requests to read available MCP resources
+- **Prompts Folder**: Requests to execute MCP prompts with arguments
+- **General Operations**: Standard MCP protocol operations (list tools, resources, prompts)
+- **Environment Variables**: Pre-configured variables for server URL and authentication
+- **Documentation**: Comprehensive descriptions extracted from MCP tool metadata
+
+### 🔄 Aisera Integration Workflow
+
+1. **User Input**: Aisera user provides their MCP server URL
+2. **API Call**: Aisera calls `/generate-postman` with server details
+3. **Discovery**: API connects and discovers all server capabilities
+4. **Generation**: Complete Postman collection is generated with all tools
+5. **Download**: User receives ready-to-import collection JSON file
+6. **Integration**: Collection is uploaded to Aisera for immediate use
+
+### 📝 Response Format
+
+```json
+{
+  "success": true,
+  "collection": {
+    "info": {
+      "name": "MCP Server: your-server.com",
+      "description": "Auto-generated collection...",
+      "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [...],
+    "variable": [...]
+  },
+  "metadata": {
+    "serverUrl": "https://your-server.com",
+    "toolsCount": 15,
+    "resourcesCount": 8,
+    "promptsCount": 3,
+    "generatedAt": "2025-01-15T10:30:00.000Z"
+  }
+}
+```
+
+### 🧪 Testing
+
+Run the test script to see the generator in action:
+
+```bash
+python test_postman_generator.py
 ```
 
 ## 🧮 Cloudflare Math Server Integration
