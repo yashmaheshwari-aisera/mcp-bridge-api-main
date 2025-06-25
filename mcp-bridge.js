@@ -220,7 +220,7 @@ async function startHTTPServer(serverId, config) {
               headers: {
                 'Content-Type': 'application/json'
               },
-              timeout: 30000
+              timeout: 0 // No timeout for background job processing
             });
             
             return response.data;
@@ -261,7 +261,7 @@ async function startHTTPServer(serverId, config) {
             headers: {
               'Content-Type': 'application/json'
             },
-            timeout: 30000
+            timeout: 30000 // Keep timeout for initialization
           });
           
           if (response.data && (response.data.result || response.data.id)) {
@@ -327,7 +327,8 @@ async function startSSEServer(serverId, config) {
               response = await axios.post(`${config.url}/mcp`, request, {
                 headers: {
                   'Content-Type': 'application/json'
-                }
+                },
+                timeout: 0 // No timeout for background job processing
               });
             } catch (error) {
               if (error.response && error.response.status === 404) {
@@ -335,7 +336,8 @@ async function startSSEServer(serverId, config) {
                 response = await axios.post(config.url, request, {
                   headers: {
                     'Content-Type': 'application/json'
-                  }
+                  },
+                  timeout: 0 // No timeout for background job processing
                 });
               } else {
                 throw error;
