@@ -1023,6 +1023,43 @@ function generateBearerToken() {
 }
 
 // Enhanced sendMCPRequest for background jobs (no timeout)
+// Send request to dynamic MCP server (no pre-configuration needed)
+async function sendDynamicMCPRequest(serverUrl, authToken, method, params = {}) {
+  const requestId = uuidv4();
+  const request = {
+    jsonrpc: "2.0",
+    id: requestId,
+    method,
+    params
+  };
+  
+  try {
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+    
+    // Add authorization header if token provided
+    if (authToken) {
+      headers.Authorization = `Bearer ${authToken}`;
+    }
+    
+    console.log(`[DYNAMIC] Sending HTTP request to ${serverUrl}: ${method}`, params);
+    const response = await axios.post(serverUrl, request, {
+      headers,
+      timeout: 0 // No timeout for background job processing
+    });
+    
+    if (response.data && response.data.error) {
+      throw new Error(response.data.error.message || 'Unknown error from dynamic MCP server');
+    }
+    
+    return response.data.result || response.data;
+  } catch (error) {
+    console.error(`[DYNAMIC] Error sending request to ${serverUrl}:`, error.message);
+    throw error;
+  }
+}
+
 async function sendMCPRequestForJob(serverId, method, params = {}) {
   const serverInfo = serverProcesses.get(serverId);
   
@@ -1180,8 +1217,23 @@ async function processJobInBackground(job_id) {
     
     let result;
     
-    // If serverId is provided, use specific server
-    if (job.server_id) {
+    // Check if this is a dynamic server job
+    if (job.dynamic_server_url) {
+      console.log(`[JOB ${job_id}] Using dynamic MCP server: ${job.dynamic_server_url}`);
+      
+      // Use dynamic server connection
+      result = await sendDynamicMCPRequest(
+        job.dynamic_server_url,
+        job.dynamic_auth_token,
+        'tools/call',
+        {
+          name: job.tool_name,
+          arguments: job.parameters
+        }
+      );
+    }
+    // If serverId is provided, use specific pre-configured server
+    else if (job.server_id) {
       if (!serverProcesses.has(job.server_id)) {
         throw new Error(`Server '${job.server_id}' not found or not connected`);
       }
@@ -1190,8 +1242,9 @@ async function processJobInBackground(job_id) {
         name: job.tool_name,
         arguments: job.parameters
       });
-    } else {
-      // Auto-discover server that has this tool
+    } 
+    // Auto-discover server that has this tool (legacy behavior)
+    else {
       let foundServer = null;
       
       for (const [serverId, serverInfo] of serverProcesses) {
@@ -2214,6 +2267,95 @@ app.post('/tool/execute', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to queue job',
+      message: error.message
+    });
+  }
+});
+
+// Dynamic MCP Server Tool Execution - Submit async job with dynamic MCP server
+app.post('/tool/execute/dynamic', async (req, res) => {
+  console.log('POST /tool/execute/dynamic', req.body);
+  
+  try {
+    const { mcp_server_url, mcp_auth_token, tool_name, parameters } = req.body;
+    
+    // Validate required fields
+    if (!mcp_server_url) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required field: mcp_server_url'
+      });
+    }
+    
+    if (!tool_name) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required field: tool_name'
+      });
+    }
+    
+    // Validate URL format
+    try {
+      new URL(mcp_server_url);
+    } catch (urlError) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid mcp_server_url format',
+        message: 'Must be a valid HTTP/HTTPS URL'
+      });
+    }
+    
+    // Generate job identifiers
+    const job_id = generateJobId();
+    const bearer_token = generateBearerToken();
+    
+    // Create job record with dynamic server info
+    const job = {
+      job_id,
+      bearer_token,
+      status: 'QUEUED',
+      tool_name,
+      parameters: parameters || {},
+      // Dynamic server configuration
+      dynamic_server_url: mcp_server_url,
+      dynamic_auth_token: mcp_auth_token || null,
+      // Standard job fields
+      result: null,
+      error: null,
+      created_at: new Date().toISOString(),
+      started_at: null,
+      completed_at: null,
+      expires_at: new Date(Date.now() + 24*60*60*1000).toISOString() // 24 hour TTL
+    };
+    
+    // Store job
+    jobs.set(job_id, job);
+    
+    console.log(`[JOB ${job_id}] Dynamic job queued for tool: ${tool_name} on ${mcp_server_url}`);
+    
+    // Start background processing (non-blocking)
+    setImmediate(() => processJobInBackground(job_id));
+    
+    // Return immediate response
+    res.json({
+      success: true,
+      message: 'Dynamic job queued successfully',
+      job_id: job_id,
+      result_location: `/results/${job_id}`,
+      bearer_token: bearer_token,
+      status: 'QUEUED',
+      tool_name: tool_name,
+      mcp_server_url: mcp_server_url,
+      estimated_completion: new Date(Date.now() + 10*60*1000).toISOString(), // 10 min estimate
+      created_at: job.created_at,
+      expires_at: job.expires_at
+    });
+    
+  } catch (error) {
+    console.error('Error queuing dynamic job:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to queue dynamic job',
       message: error.message
     });
   }
