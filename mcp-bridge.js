@@ -1033,29 +1033,190 @@ async function sendDynamicMCPRequest(serverUrl, authToken, method, params = {}) 
     params
   };
   
+  console.log(`[DYNAMIC] Attempting to connect to: ${serverUrl}`);
+  
+  // Strategy 1: Try HTTP first (works for most servers, fast)
   try {
+    return await sendHttpMCPRequest(serverUrl, authToken, request, method, params);
+  } catch (httpError) {
+    console.log(`[DYNAMIC] HTTP failed: ${httpError.message}`);
+    
+    // Strategy 2: If HTTP fails and URL suggests SSE, try SSE approach
+    if (serverUrl.includes('/sse') || httpError.message.includes('404') || httpError.message.includes('Not Found')) {
+      console.log(`[DYNAMIC] Attempting SSE fallback for: ${serverUrl}`);
+      try {
+        return await sendSSEMCPRequest(serverUrl, authToken, request, method, params);
+      } catch (sseError) {
+        console.error(`[DYNAMIC] Both HTTP and SSE failed for ${serverUrl}`);
+        throw new Error(`MCP connection failed. HTTP: ${httpError.message}. SSE: ${sseError.message}`);
+      }
+    }
+    
+    // If not SSE-like URL, just throw the HTTP error
+    throw httpError;
+  }
+}
+
+// HTTP MCP Request (existing working logic)
+async function sendHttpMCPRequest(serverUrl, authToken, request, method, params) {
+  const headers = {
+        'Content-Type': 'application/json'
+  };
+  
+  // Add authorization header if token provided
+      if (authToken) {
+        headers.Authorization = `Bearer ${authToken}`;
+      }
+      
+  console.log(`[HTTP] Sending request to ${serverUrl}: ${method}`, params);
+  const response = await axios.post(serverUrl, request, {
+        headers,
+    timeout: 0 // No timeout for background job processing
+  });
+  
+  if (response.data && response.data.error) {
+    throw new Error(response.data.error.message || 'Unknown error from HTTP MCP server');
+  }
+  
+  return response.data.result || response.data;
+}
+
+// SSE MCP Request (minimal, single-request approach)
+async function sendSSEMCPRequest(serverUrl, authToken, request, method, params) {
+  console.log(`[SSE] Connecting to SSE server: ${serverUrl}`);
+  
+  try {
+    // Step 1: Connect to SSE endpoint to get session info
     const headers = {
+      'Accept': 'text/event-stream',
+        'Cache-Control': 'no-cache'
+    };
+    
+        if (authToken) {
+          headers.Authorization = `Bearer ${authToken}`;
+        }
+        
+    console.log(`[SSE] Requesting session from: ${serverUrl}`);
+    
+    // Use streaming approach for SSE (avoid "stream has been aborted")
+    const sseResponse = await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('SSE session timeout after 30 seconds'));
+      }, 30000);
+      
+      axios.get(serverUrl, {
+        headers,
+        responseType: 'stream'
+      }).then(response => {
+        let data = '';
+        
+        response.data.on('data', chunk => {
+          data += chunk.toString();
+          // Stop after getting enough data for session info
+          if (data.includes('\n\n') || data.length > 500) {
+            clearTimeout(timeout);
+            response.data.destroy(); // Clean close
+            resolve({ data });
+          }
+        });
+        
+        response.data.on('error', error => {
+          clearTimeout(timeout);
+          reject(error);
+        });
+        
+      }).catch(error => {
+        clearTimeout(timeout);
+        reject(error);
+      });
+    });
+    
+    // Step 2: Parse SSE response to extract endpoint
+    const sessionInfo = parseSSESessionData(sseResponse.data);
+    if (!sessionInfo.endpoint) {
+      throw new Error('Could not extract session endpoint from SSE response');
+    }
+    
+    // Step 3: Build full endpoint URL
+    const baseUrl = serverUrl.replace('/sse', '');
+    const fullEndpoint = sessionInfo.endpoint.startsWith('http') 
+      ? sessionInfo.endpoint 
+      : `${baseUrl}${sessionInfo.endpoint}`;
+    
+    console.log(`[SSE] Using session endpoint: ${fullEndpoint}`);
+    
+    // Step 4: Send JSON-RPC request to session endpoint
+    const requestHeaders = {
       'Content-Type': 'application/json'
     };
     
-    // Add authorization header if token provided
-    if (authToken) {
-      headers.Authorization = `Bearer ${authToken}`;
+      if (authToken) {
+      requestHeaders.Authorization = `Bearer ${authToken}`;
     }
     
-    console.log(`[DYNAMIC] Sending HTTP request to ${serverUrl}: ${method}`, params);
-    const response = await axios.post(serverUrl, request, {
-      headers,
-      timeout: 0 // No timeout for background job processing
-    });
+    const response = await axios.post(fullEndpoint, request, {
+      headers: requestHeaders,
+      timeout: 0 // No timeout for the actual request
+      });
+      
+      if (response.data && response.data.error) {
+      throw new Error(response.data.error.message || 'Unknown error from SSE MCP server');
+      }
+      
+      return response.data.result || response.data;
+      
+    } catch (error) {
+    console.error(`[SSE] Error with SSE server ${serverUrl}:`, error.message);
+    throw new Error(`SSE connection failed: ${error.message}`);
+  }
+}
+
+// Parse SSE session data to extract endpoint
+function parseSSESessionData(sseData) {
+  console.log(`[SSE] Parsing session data...`);
+  
+  try {
+    // Handle common SSE response patterns
+    const lines = sseData.split('\n');
     
-    if (response.data && response.data.error) {
-      throw new Error(response.data.error.message || 'Unknown error from dynamic MCP server');
+    for (const line of lines) {
+      // Pattern 1: data: /path/to/endpoint
+      if (line.startsWith('data: /')) {
+        const endpoint = line.replace('data: ', '').trim();
+        console.log(`[SSE] Found endpoint pattern 1: ${endpoint}`);
+        return { endpoint };
+      }
+      
+      // Pattern 2: data: {"endpoint": "/path/to/endpoint"}
+      if (line.startsWith('data: {')) {
+        try {
+          const data = JSON.parse(line.replace('data: ', ''));
+          if (data.endpoint) {
+            console.log(`[SSE] Found endpoint pattern 2: ${data.endpoint}`);
+            return { endpoint: data.endpoint };
+          }
+        } catch (e) {
+          // Continue trying other patterns
+        }
+      }
+      
+      // Pattern 3: data: sessionId=xyz&endpoint=/path
+      if (line.includes('endpoint=')) {
+        const match = line.match(/endpoint=([^&\s]+)/);
+        if (match) {
+          const endpoint = decodeURIComponent(match[1]);
+          console.log(`[SSE] Found endpoint pattern 3: ${endpoint}`);
+          return { endpoint };
+        }
+      }
     }
     
-    return response.data.result || response.data;
+    // If no specific pattern found, log the data for debugging
+    console.log(`[SSE] Could not parse session data:`, sseData.substring(0, 200));
+    throw new Error('No endpoint found in SSE session data');
+    
   } catch (error) {
-    console.error(`[DYNAMIC] Error sending request to ${serverUrl}:`, error.message);
+    console.error(`[SSE] Session parsing error:`, error.message);
     throw error;
   }
 }
