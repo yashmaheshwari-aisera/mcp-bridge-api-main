@@ -15,7 +15,12 @@ const fs = require('fs');
 const path = require('path');
 const morgan = require('morgan');
 const { v4: uuidv4 } = require('uuid');
-const EventSource = require('eventsource');
+let EventSource = require('eventsource').EventSource;
+console.log('DEBUG: typeof EventSource:', typeof EventSource, 'EventSource:', EventSource);
+if (typeof EventSource !== 'function') {
+  EventSource = EventSource.default;
+  console.log('DEBUG: typeof EventSource after .default:', typeof EventSource, 'EventSource:', EventSource);
+}
 const axios = require('axios');
 
 // Load environment variables
@@ -1707,14 +1712,23 @@ app.delete('/servers/:serverId', async (req, res) => {
 app.get('/servers/:serverId/tools', async (req, res) => {
   const { serverId } = req.params;
   console.log(`GET /servers/${serverId}/tools`);
-  
+
   try {
     if (!serverProcesses.has(serverId)) {
       return res.status(404).json({
         error: `Server '${serverId}' not found or not connected`
       });
     }
-    
+    const serverInfo = serverProcesses.get(serverId);
+    // Use dynamic logic for SSE servers
+    if (serverInfo.type === 'sse' && serverInfo.config && serverInfo.config.url) {
+      // Always use /sse endpoint for dynamic requests
+      const sseUrl = serverInfo.config.url.endsWith('/sse') ? serverInfo.config.url : serverInfo.config.url + '/sse';
+      const result = await sendDynamicMCPRequest(sseUrl, null, 'tools/list', {});
+      res.json(result);
+      return;
+    }
+    // Default: use standard logic
     const result = await sendMCPRequest(serverId, 'tools/list');
     res.json(result);
   } catch (error) {
@@ -1727,40 +1741,42 @@ app.get('/servers/:serverId/tools', async (req, res) => {
 app.post('/servers/:serverId/tools/:toolName', async (req, res) => {
   const { serverId, toolName } = req.params;
   const arguments = req.body;
-  
+
   console.log(`POST /servers/${serverId}/tools/${toolName}`, arguments);
-  
+
   try {
     if (!serverProcesses.has(serverId)) {
       return res.status(404).json({
         error: `Server '${serverId}' not found or not connected`
       });
     }
-    
     const serverInfo = serverProcesses.get(serverId);
-    
-    // Get risk level information for the response
-    const riskLevel = serverInfo.riskLevel;
-    
+    // Use dynamic logic for SSE servers
+    if (serverInfo.type === 'sse' && serverInfo.config && serverInfo.config.url) {
+      const sseUrl = serverInfo.config.url.endsWith('/sse') ? serverInfo.config.url : serverInfo.config.url + '/sse';
+      const result = await sendDynamicMCPRequest(sseUrl, null, 'tools/call', {
+        name: toolName,
+        arguments
+      });
+      res.json(result);
+      return;
+    }
+    // Default: use standard logic
     const result = await sendMCPRequest(serverId, 'tools/call', {
       name: toolName,
       arguments
     });
-    
     // Ensure we have a valid result object to return
     if (result === undefined || result === null) {
       return res.status(500).json({ 
         error: "The MCP server returned an empty response" 
       });
     }
-    
     // Handle different response formats
     try {
-      // Return the parsed result
-    res.json(result);
+      res.json(result);
     } catch (jsonError) {
       console.error(`Error stringifying result for tool ${toolName}:`, jsonError);
-      // If JSON serialization fails, return a clean error
       res.status(500).json({ 
         error: "Failed to format the response from the MCP server",
         details: jsonError.message

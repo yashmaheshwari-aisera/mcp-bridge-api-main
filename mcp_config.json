@@ -1,9 +1,22 @@
 {
   "mcpServers": {
     "math-server": {
-      "type": "http",
-      "url": "https://mcp-proxy.yashmahe2021.workers.dev/mcp",
-      "description": "Cloudflare-hosted math MCP server with mathematical functions"
+      "type": "sse",
+      "url": "https://mcp-proxy.yashmahe2021.workers.dev",
+      "riskLevel": 1,
+      "description": "Low risk test server (Yashmahe Proxy)"
+    },
+    "matallo-server": {
+      "type": "sse",
+      "url": "https://mcp-server.matallo.workers.dev",
+      "riskLevel": 1,
+      "description": "Low risk test server (Matallo)"
+    },
+    "idosalomon-server": {
+      "type": "sse",
+      "url": "https://remote-mcp-server-authless.idosalomon.workers.dev",
+      "riskLevel": 1,
+      "description": "Low risk test server (Ido Salomon)"
     }
   }
 }
