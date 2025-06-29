@@ -684,61 +684,17 @@ function generateBearerToken() {
 // Send request to dynamic MCP server (no pre-configuration needed)
 async function sendDynamicMCPRequest(serverUrl, authToken, method, params = {}) {
   const requestId = uuidv4();
-  
-  // MCP Protocol Fix: Use tool name directly as method, not wrapped in tools/call
   const request = {
     jsonrpc: "2.0",
     id: requestId,
-    method: method, // Direct tool name as method (e.g., "get_name", "get_bio")
-    params: params  // Direct parameters, not wrapped in "arguments"
+    method: method,
+    params: params
   };
-  
   console.log(`[DYNAMIC] Attempting to connect to: ${serverUrl}`);
   console.log(`[MCP-FIX] Using correct MCP format - method: ${method}, params:`, params);
   
-  // Strategy 1: Try SSE first (MCP servers are primarily SSE-based)
-  if (serverUrl.includes('/sse') || serverUrl.includes('sse')) {
-    console.log(`[DYNAMIC] SSE URL detected, trying SSE first for: ${serverUrl}`);
-    try {
-      const sseResult = await sendSSEMCPRequest(serverUrl, authToken, request, method, params);
-      console.log(`[DYNAMIC] sendSSEMCPRequest returned:`, JSON.stringify(sseResult, null, 2));
-      return sseResult;
-    } catch (sseError) {
-      console.log(`[DYNAMIC] SSE failed: ${sseError.message}`);
-      
-      // Strategy 2: Fall back to HTTP if SSE fails
-      console.log(`[DYNAMIC] Attempting HTTP fallback for: ${serverUrl}`);
-      try {
-        const httpResult = await sendHttpMCPRequest(serverUrl, authToken, request, method, params);
-        console.log(`[DYNAMIC] sendHttpMCPRequest returned:`, JSON.stringify(httpResult, null, 2));
-        return httpResult;
-      } catch (httpError) {
-        console.error(`[DYNAMIC] Both SSE and HTTP failed for ${serverUrl}`);
-        throw new Error(`MCP connection failed. SSE: ${sseError.message}. HTTP: ${httpError.message}`);
-      }
-    }
-  } else {
-    // For non-SSE URLs, try HTTP first then SSE
-    console.log(`[DYNAMIC] Non-SSE URL, trying HTTP first for: ${serverUrl}`);
-    try {
-      const httpResult = await sendHttpMCPRequest(serverUrl, authToken, request, method, params);
-      console.log(`[DYNAMIC] sendHttpMCPRequest returned:`, JSON.stringify(httpResult, null, 2));
-      return httpResult;
-    } catch (httpError) {
-      console.log(`[DYNAMIC] HTTP failed: ${httpError.message}`);
-      
-      // Try SSE as fallback even for non-SSE URLs
-      console.log(`[DYNAMIC] Attempting SSE fallback for: ${serverUrl}`);
-      try {
-        const sseResult = await sendSSEMCPRequest(serverUrl, authToken, request, method, params);
-        console.log(`[DYNAMIC] sendSSEMCPRequest returned:`, JSON.stringify(sseResult, null, 2));
-        return sseResult;
-      } catch (sseError) {
-        console.error(`[DYNAMIC] Both HTTP and SSE failed for ${serverUrl}`);
-        throw new Error(`MCP connection failed. HTTP: ${httpError.message}. SSE: ${sseError.message}`);
-      }
-    }
-  }
+  // For SSE servers, always use the config URL (with /sse) for the initial GET
+  return await sendSSEMCPRequest(serverUrl, authToken, request, method, params);
 }
 
 // HTTP MCP Request (existing working logic)
@@ -763,189 +719,231 @@ async function sendHttpMCPRequest(serverUrl, authToken, request, method, params)
 
 // SSE MCP Request (proper streaming approach)
 async function sendSSEMCPRequest(serverUrl, authToken, request, method, params) {
-  console.log(`[SSE] (spec-compliant) Connecting to ${serverUrl}`);
+  console.log(`[SSE] (Cloudflare MCP) Connecting to ${serverUrl}`);
 
   const headers = {
     Accept: 'text/event-stream',
-    'Cache-Control': 'no-cache'
+    'Cache-Control': 'no-cache',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
   };
   if (authToken) headers.Authorization = `Bearer ${authToken}`;
+  console.log('[SSE-DEBUG] Request headers:', headers);
 
   return new Promise((resolve, reject) => {
     const axiosSource = axios.CancelToken.source();
     let sessionEndpoint = null;
     let jsonResponse = null;
     let buffer = '';
-    let sessionTimeout = null;
     let sseResponse = null;
-    let fallbackTriggered = false;
-
-    const timeout = setTimeout(() => {
-      if (sseResponse) sseResponse.data.destroy();
-      axiosSource.cancel('SSE overall timeout');
-      console.error(`[SSE-DEBUG] [${request.id}] SSE overall timeout after 120s. FallbackTriggered: ${fallbackTriggered}`);
-      reject(new Error('SSE overall timeout after 120s'));
-    }, 120000);
-
+    let sessionTimeout = null;
+    let responseTimeout = null;
+    let requestPosted = false;
+    let dataChunkCount = 0;
+    
+    // 1. Open GET SSE connection to /sse (never strip /sse)
     axios
       .get(serverUrl, {
         headers,
         responseType: 'stream',
         timeout: 0,
         cancelToken: axiosSource.token,
-        // Add connection management options
         maxRedirects: 5,
-        validateStatus: (status) => status < 500, // Accept 4xx responses
-        // Use existing configured agents for connection reuse
+        validateStatus: (status) => status < 500,
         httpAgent: httpAgent,
         httpsAgent: httpsAgent
       })
       .then((_sseResponse) => {
         sseResponse = _sseResponse;
+        console.log('[SSE-DEBUG] Response status:', sseResponse.status);
+        console.log('[SSE-DEBUG] Response headers:', sseResponse.headers);
+        
+        // Check for session ID in headers (Cloudflare MCP pattern)
+        const sessionId = sseResponse.headers['mcp-session-id'];
+        if (sessionId) {
+          console.log('[SSE-DEBUG] Found session ID in headers:', sessionId);
+          
+          // Post back to the same /sse endpoint with session ID in header
+          const reqHeaders = { 
+            'Content-Type': 'application/json',
+            'MCP-Session-Id': sessionId
+          };
+          if (authToken) reqHeaders.Authorization = `Bearer ${authToken}`;
+          
+          console.log(`[SSE] Posting request to ${serverUrl} with session ID ${sessionId} [${request.id}]`);
+          
+          clearTimeout(sessionTimeout);
+          
+          axios
+            .post(serverUrl, request, {
+              headers: reqHeaders,
+              timeout: 30000
+            })
+            .then((postResponse) => {
+              console.log(`[SSE] POST successful to ${serverUrl}, status: ${postResponse.status}`);
+              console.log(`[SSE] POST response data:`, JSON.stringify(postResponse.data, null, 2));
+              
+              // Check if the response is directly in the POST response
+              if (postResponse.data && postResponse.data.id === request.id) {
+                console.log(`[SSE] Response received directly in POST response for request ${request.id}`);
+                jsonResponse = postResponse.data;
+                clearTimeout(responseTimeout);
+                if (sseResponse && sseResponse.data) sseResponse.data.destroy();
+                resolve(postResponse.data);
+                return;
+              }
+              
+              // Check if the response is in SSE format in the POST response
+              if (postResponse.data && typeof postResponse.data === 'string' && postResponse.data.startsWith('data: ')) {
+                try {
+                  const jsonStr = postResponse.data.substring(6).trim(); // Remove "data: " prefix
+                  const parsedResponse = JSON.parse(jsonStr);
+                  if (parsedResponse.id === request.id) {
+                    console.log(`[SSE] Response received in SSE format in POST response for request ${request.id}`);
+                    jsonResponse = parsedResponse;
+                    clearTimeout(responseTimeout);
+                    if (sseResponse && sseResponse.data) sseResponse.data.destroy();
+                    resolve(parsedResponse);
+                    return;
+                  }
+                } catch (parseErr) {
+                  console.log(`[SSE] Failed to parse SSE-formatted response: ${parseErr.message}`);
+                }
+              }
+              
+              // For tool execution, the response might come via SSE stream instead of POST response
+              console.log(`[SSE] POST successful, waiting for response via SSE stream for request ${request.id}`);
+              requestPosted = true;
+              // 4. Wait for the response via SSE
+              responseTimeout = setTimeout(() => {
+                if (!jsonResponse) {
+                  if (sseResponse && sseResponse.data) sseResponse.data.destroy();
+                  reject(new Error('No JSON response received from SSE server'));
+                }
+              }, 30000); // 30s to get response
+            })
+            .catch((postErr) => {
+              console.log(`[SSE] POST failed to ${serverUrl}: ${postErr.response?.status} - ${postErr.message}`);
+              if (sseResponse && sseResponse.data) sseResponse.data.destroy();
+              reject(new Error(`[SSE] POST error: ${postErr.message}`));
+            });
+        }
+        
         buffer = '';
-        sessionEndpoint = null;
         jsonResponse = null;
-        fallbackTriggered = false;
+        requestPosted = false;
 
-        // Wait up to 2s for a session endpoint event
-        sessionTimeout = setTimeout(() => {
-          if (!sessionEndpoint && !fallbackTriggered) {
-            console.warn(`[SSE] No session endpoint event received after 2s. Falling back to HTTP POST. [${request.id}]`);
-            fallbackTriggered = true;
-            if (sseResponse && sseResponse.data) sseResponse.data.destroy();
-            clearTimeout(timeout);
-            sendHttpMCPRequest(serverUrl, authToken, request, method, params)
-              .then((result) => {
-                console.log(`[SSE-DEBUG] [${request.id}] HTTP fallback result:`, JSON.stringify(result, null, 2));
-                resolve(result);
-              })
-              .catch((err) => {
-                console.error(`[SSE-DEBUG] [${request.id}] HTTP fallback error:`, err.message);
-                reject(err);
-              });
-          } else {
-            console.log(`[SSE-DEBUG] [${request.id}] Session endpoint received in time or fallback already triggered.`);
-          }
-        }, 2000);
-
+        // 2. Wait for session endpoint (fallback if not in headers) - REMOVED since Cloudflare MCP uses headers
+        // The session ID is already handled above in the headers check
+        
         function processEvent(eventBlock) {
           const lines = eventBlock.split('\n');
           for (const line of lines) {
-            if (line.startsWith(':')) {
-              console.log(`[SSE-DEBUG] SSE comment/event: ${line}`);
-              continue;
-            }
+            if (line.startsWith(':')) continue;
             if (!line.startsWith('data:')) continue;
             const data = line.replace(/^data:\s*/, '').trim();
             if (!data) continue;
-            console.log(`[SSE-DEBUG] SSE data event: ${data}`);
-            
-            // First check if this is a direct JSON-RPC response (no session endpoint needed)
+            // 2.1. Look for session endpoint
+            if (!sessionEndpoint && (data.startsWith('/') || (data.startsWith('{') && data.includes('endpoint')))) {
+              let endpoint = null;
+              if (data.startsWith('/')) {
+                endpoint = data;
+              } else {
+                try {
+                  const parsed = JSON.parse(data);
+                  if (parsed.endpoint) endpoint = parsed.endpoint;
+                } catch {}
+              }
+              if (endpoint) {
+                sessionEndpoint = endpoint;
+                    clearTimeout(sessionTimeout);
+                // 3. POST the JSON-RPC request to the session endpoint
+                const baseUrl = serverUrl.replace(/\/sse$/, '');
+                const fullEndpoint = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint}`;
+                const reqHeaders = { 'Content-Type': 'application/json' };
+                if (authToken) reqHeaders.Authorization = `Bearer ${authToken}`;
+                console.log(`[SSE] Posting request to session endpoint ${fullEndpoint} [${request.id}]`);
+                axios
+                  .post(fullEndpoint, request, {
+                    headers: reqHeaders,
+                    timeout: 0
+                  })
+                  .then(() => {
+                    requestPosted = true;
+                    // 4. Wait for the response via SSE
+                    responseTimeout = setTimeout(() => {
+                      if (!jsonResponse) {
+                        if (sseResponse && sseResponse.data) sseResponse.data.destroy();
+                        reject(new Error('No JSON response received from SSE server'));
+                      }
+                    }, 30000); // 30s to get response
+                  })
+                  .catch((postErr) => {
+                    if (sseResponse && sseResponse.data) sseResponse.data.destroy();
+                    reject(new Error(`[SSE] POST error: ${postErr.message}`));
+                  });
+                    return;
+                  }
+              }
+            // 4.1. Wait for JSON-RPC response
             if (data.startsWith('{')) {
               try {
                 const parsed = JSON.parse(data);
-                
-                // Check if this is a JSON-RPC response for our request
-                if (parsed.jsonrpc === "2.0" && parsed.id === request.id) {
+                if (parsed.jsonrpc === '2.0' && parsed.id === request.id) {
                   jsonResponse = parsed;
-                  console.log(`[SSE-DEBUG] [${request.id}] Received direct JSON-RPC response:`, JSON.stringify(parsed, null, 2));
-                  clearTimeout(sessionTimeout);
-                  finish();
-                  return;
+                  if (responseTimeout) clearTimeout(responseTimeout);
+                  if (sseResponse && sseResponse.data) sseResponse.data.destroy();
+                  if (parsed.error) {
+                    return reject(new Error(parsed.error.message || 'Unknown error from SSE server'));
+                  }
+                  return resolve(parsed.result || parsed);
                 }
-                
-                // Check if this is a session endpoint discovery (only if no sessionEndpoint yet)
-                if (!sessionEndpoint && parsed.endpoint) {
-                  sessionEndpoint = parsed.endpoint;
-                  console.log(`[SSE] Session endpoint discovered: ${sessionEndpoint} [${request.id}]`);
-                  clearTimeout(sessionTimeout);
-                  sendRequest();
-                  return;
-                }
-                
-                // If we already have a session endpoint, check if this is the response
-                if (sessionEndpoint && parsed.id === request.id) {
-                  jsonResponse = parsed;
-                  console.log(`[SSE-DEBUG] [${request.id}] Received JSON response via session:`, JSON.stringify(parsed, null, 2));
-                  finish();
-                  return;
-                }
-              } catch (parseError) {
-                console.log(`[SSE-DEBUG] [${request.id}] Failed to parse JSON data:`, parseError.message);
-                // Continue to other parsing attempts
-              }
-            }
-            
-            // Check for simple endpoint path (no session needed)
-            if (!sessionEndpoint && data.startsWith('/')) {
-              sessionEndpoint = data;
-              console.log(`[SSE] Session endpoint discovered: ${sessionEndpoint} [${request.id}]`);
-              clearTimeout(sessionTimeout);
-              sendRequest();
-              return;
+              } catch {}
             }
           }
         }
 
         sseResponse.data.on('data', (chunk) => {
+          dataChunkCount++;
+          const chunkStr = chunk.toString();
+          console.log(`[SSE-DEBUG] Chunk ${dataChunkCount} (posted: ${requestPosted}): ${chunkStr.substring(0, 200)}...`);
           buffer += chunk.toString();
+          console.log('[SSE-DEBUG] Raw chunk received:', chunk.toString());
           let idx;
           while ((idx = buffer.indexOf('\n\n')) >= 0) {
             const eventBlock = buffer.slice(0, idx);
             buffer = buffer.slice(idx + 2);
+            console.log('[SSE-DEBUG] Processing event block:', eventBlock);
             processEvent(eventBlock);
           }
         });
 
-        sseResponse.data.on('error', (err) => {
-          clearTimeout(timeout);
-          if (sessionTimeout) clearTimeout(sessionTimeout);
-          console.error(`[SSE-DEBUG] [${request.id}] SSE stream error:`, err.message);
-          reject(err);
-        });
-
-        const sendRequest = () => {
-          if (!sessionEndpoint) return;
-          const baseUrl = serverUrl.replace(/\/?sse$/, '');
-          const fullEndpoint = sessionEndpoint.startsWith('http')
-            ? sessionEndpoint
-            : `${baseUrl}${sessionEndpoint}`;
-
-          const reqHeaders = { 'Content-Type': 'application/json' };
-          if (authToken) reqHeaders.Authorization = `Bearer ${authToken}`;
-
-          console.log(`[SSE] Posting request to session endpoint ${fullEndpoint} [${request.id}]`);
-          axios
-            .post(fullEndpoint, request, {
-              headers: reqHeaders,
-              timeout: 0
-            })
-            .catch((postErr) => {
-              console.error(`[SSE] POST error:`, postErr.message);
-            });
-        };
-
-        function finish() {
-          clearTimeout(timeout);
-          if (sessionTimeout) clearTimeout(sessionTimeout);
-          sseResponse.data.destroy();
+        sseResponse.data.on('end', () => {
+          console.log('[SSE-DEBUG] SSE connection ended');
           if (!jsonResponse) {
-            console.error(`[SSE-DEBUG] [${request.id}] No JSON response on SSE stream`);
-            return reject(new Error('No JSON response on SSE stream'));
+            reject(new Error('SSE connection ended without response'));
           }
-          if (jsonResponse.error) {
-            console.error(`[SSE-DEBUG] [${request.id}] Error in JSON response:`, jsonResponse.error.message);
-            return reject(new Error(jsonResponse.error.message || 'Unknown error from SSE server'));
+        });
+        
+        sseResponse.data.on('close', () => {
+          console.log('[SSE-DEBUG] SSE connection closed');
+        });
+        
+        sseResponse.data.on('error', (err) => {
+          console.log('[SSE-DEBUG] SSE connection error:', err.message);
+          if (!jsonResponse) {
+            reject(new Error(`SSE connection error: ${err.message}`));
           }
-          console.log(`[SSE-DEBUG] [${request.id}] Resolving with result:`, JSON.stringify(jsonResponse.result || jsonResponse, null, 2));
-          return resolve(jsonResponse.result || jsonResponse);
-        }
+        });
       })
       .catch((err) => {
-        clearTimeout(timeout);
+        if (err.response) {
+          console.error('[SSE-DEBUG] Error response status:', err.response.status);
+          console.error('[SSE-DEBUG] Error response headers:', err.response.headers);
+          console.error('[SSE-DEBUG] Error response data:', err.response.data ? err.response.data.toString() : '');
+        }
         if (sessionTimeout) clearTimeout(sessionTimeout);
-        console.error(`[SSE-DEBUG] [${request.id}] Failed to open SSE connection:`, err.message);
-        reject(new Error(`Failed to open SSE connection: ${err.message}`));
+        if (responseTimeout) clearTimeout(responseTimeout);
+        reject(new Error(`[SSE] Failed to open SSE connection: ${err.message}`));
       });
   });
 }
@@ -1411,8 +1409,8 @@ app.get('/servers/:serverId/tools', async (req, res) => {
         
         // Fallback to dynamic request
         try {
-          const sseUrl = serverInfo.config.url.endsWith('/sse') ? serverInfo.config.url : serverInfo.config.url + '/sse';
-          const result = await sendDynamicMCPRequest(sseUrl, null, 'tools/list', {});
+      const sseUrl = serverInfo.config.url.endsWith('/sse') ? serverInfo.config.url : serverInfo.config.url + '/sse';
+      const result = await sendDynamicMCPRequest(sseUrl, null, 'tools/list', {});
           
           // Parse and format the response properly
           if (result && typeof result === 'string' && result.startsWith('data: ')) {
@@ -1430,13 +1428,13 @@ app.get('/servers/:serverId/tools', async (req, res) => {
               res.json({ tools: [], error: "Failed to parse server response" });
             }
           } else {
-            res.json(result);
+      res.json(result);
           }
-          return;
+      return;
         } catch (fallbackError) {
           console.error(`[TOOLS-LIST] Both direct and fallback failed for ${serverId}`);
           throw fallbackError;
-        }
+    }
       }
     }
     
@@ -1487,11 +1485,11 @@ app.post('/servers/:serverId/tools/:toolName', async (req, res) => {
         
         // Fallback to dynamic request
         try {
-          const sseUrl = serverInfo.config.url.endsWith('/sse') ? serverInfo.config.url : serverInfo.config.url + '/sse';
-          const result = await sendDynamicMCPRequest(sseUrl, null, 'tools/call', {
-            name: toolName,
-            arguments
-          });
+      const sseUrl = serverInfo.config.url.endsWith('/sse') ? serverInfo.config.url : serverInfo.config.url + '/sse';
+      const result = await sendDynamicMCPRequest(sseUrl, null, 'tools/call', {
+        name: toolName,
+        arguments
+      });
           
           // Parse and format the response properly
           if (result && typeof result === 'string' && result.startsWith('data: ')) {
@@ -1509,9 +1507,9 @@ app.post('/servers/:serverId/tools/:toolName', async (req, res) => {
               res.status(500).json({ error: "Failed to parse server response" });
             }
           } else {
-            res.json(result);
+      res.json(result);
           }
-          return;
+      return;
         } catch (fallbackError) {
           console.error(`[TOOL-EXEC] Both direct and fallback failed for ${serverId}`);
           throw fallbackError;
