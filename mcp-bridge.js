@@ -15,12 +15,6 @@ const fs = require('fs');
 const path = require('path');
 const morgan = require('morgan');
 const { v4: uuidv4 } = require('uuid');
-let EventSource = require('eventsource').EventSource;
-console.log('DEBUG: typeof EventSource:', typeof EventSource, 'EventSource:', EventSource);
-if (typeof EventSource !== 'function') {
-  EventSource = EventSource.default;
-  console.log('DEBUG: typeof EventSource after .default:', typeof EventSource, 'EventSource:', EventSource);
-}
 const axios = require('axios');
 const http = require('http');
 const https = require('https');
@@ -612,28 +606,13 @@ async function startServer(serverId, config) {
 async function shutdownServer(serverId) {
   console.log(`Shutting down server: ${serverId}`);
   const serverInfo = serverProcesses.get(serverId);
-  
   if (serverInfo) {
-    // Handle HTTP servers differently
     if (serverInfo.type === 'http') {
       console.log(`Disconnecting HTTP server ${serverId}`);
       // HTTP servers don't need special cleanup
-    }
-    // Handle SSE servers differently
-    else if (serverInfo.type === 'sse') {
-      try {
-            if (serverInfo.eventSource) {
-      console.log(`Closing SSE connection for ${serverId}`);
-      serverInfo.eventSource.close();
-    
-    // Clear any heartbeat intervals
-    if (serverInfo.heartbeatInterval) {
-      clearInterval(serverInfo.heartbeatInterval);
-    }
-  }
-      } catch (error) {
-        console.error(`Error closing SSE connection for ${serverId}: ${error.message}`);
-      }
+    } else if (serverInfo.type === 'sse') {
+      // No persistent SSE connection to close
+      // No heartbeat interval to clear
     } else {
       try {
         console.log(`Killing process for ${serverId}`);
@@ -642,13 +621,9 @@ async function shutdownServer(serverId) {
         console.error(`Error killing process for ${serverId}: ${error.message}`);
       }
     }
-    
     serverProcesses.delete(serverId);
   }
-  
-  // Clean up initialization state
   serverInitializationState.delete(serverId);
-  
   console.log(`Server ${serverId} shutdown complete`);
 }
 
