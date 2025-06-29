@@ -22,6 +22,30 @@ if (typeof EventSource !== 'function') {
   console.log('DEBUG: typeof EventSource after .default:', typeof EventSource, 'EventSource:', EventSource);
 }
 const axios = require('axios');
+const http = require('http');
+const https = require('https');
+
+// Configure axios with better connection management
+const httpAgent = new http.Agent({
+  keepAlive: true,
+  maxSockets: 50,
+  maxFreeSockets: 10,
+  timeout: 60000,
+  keepAliveMsecs: 30000
+});
+
+const httpsAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: 50,
+  maxFreeSockets: 10,
+  timeout: 60000,
+  keepAliveMsecs: 30000
+});
+
+// Set default axios configuration
+axios.defaults.httpAgent = httpAgent;
+axios.defaults.httpsAgent = httpsAgent;
+axios.defaults.timeout = 60000; // 60 second default timeout for better reliability
 
 // Load environment variables
 require('dotenv').config();
@@ -295,160 +319,240 @@ async function startSSEServer(serverId, config) {
   
   const riskLevel = config.riskLevel || 1; // Default to low risk for SSE servers
   
-  return new Promise((resolve, reject) => {
-    try {
-      // Create EventSource connection
-      const eventSource = new EventSource(`${config.url}/sse`);
-      
-      let initialized = false;
-      const messageQueue = [];
-      let responseHandlers = new Map();
-      
-      // Store the SSE connection with server info
-      const sseServer = {
-        eventSource,
-        riskLevel,
-        pid: 'sse-' + Date.now(), // Fake PID for SSE connections
-        config,
-        type: 'sse',
-        url: config.url,
-        messageQueue,
-        responseHandlers,
+      return new Promise((resolve, reject) => {
+      let retryCount = 0;
+      const maxRetries = config.sse?.maxRetries || 3;
+      const retryDelay = config.sse?.retryDelay || 5000; // 5 seconds
+      const heartbeatInterval = config.sse?.heartbeatInterval || 15000; // 15 seconds
+      const heartbeatTimeout = config.sse?.heartbeatTimeout || 30000; // 30 seconds
+    
+    function attemptConnection() {
+      try {
+        // Create EventSource connection with custom headers
+        const eventSourceOptions = {
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Accept': 'text/event-stream',
+            'Connection': 'keep-alive'
+          },
+                     heartbeatTimeout: heartbeatTimeout, // configurable heartbeat timeout
+          withCredentials: false
+        };
         
-        // Method to send requests to SSE server
-        sendRequest: async (method, params = {}) => {
-          const requestId = uuidv4();
-          const request = {
-            jsonrpc: "2.0",
-            id: requestId,
-            method: method,
-            params: params
-          };
+        const eventSource = new EventSource(`${config.url}/sse`, eventSourceOptions);
+        
+        let initialized = false;
+        const messageQueue = [];
+        let responseHandlers = new Map();
+        let heartbeatInterval;
+        
+                 // Store the SSE connection with server info
+         const sseServer = {
+           eventSource,
+           riskLevel,
+           pid: 'sse-' + Date.now(), // Fake PID for SSE connections
+           config,
+           type: 'sse',
+           url: config.url,
+           messageQueue,
+           responseHandlers,
+           retryCount,
+           heartbeatInterval: null, // Will be set when interval is created
           
-          try {
-            // Send request via HTTP POST to the server (try both endpoints)
-            let response;
+          // Method to send requests to SSE server
+          sendRequest: async (method, params = {}) => {
+            const requestId = uuidv4();
+            const request = {
+              jsonrpc: "2.0",
+              id: requestId,
+              method: method,
+              params: params
+            };
+            
             try {
-              response = await axios.post(`${config.url}/mcp`, request, {
-                headers: {
-                  'Content-Type': 'application/json'
-                },
-                timeout: 0 // No timeout for background job processing
-              });
-            } catch (error) {
-              if (error.response && error.response.status === 404) {
-                // Try the root endpoint
-                response = await axios.post(config.url, request, {
+              // Send request via HTTP POST to the server (try both endpoints)
+              let response;
+              try {
+                response = await axios.post(`${config.url}/mcp`, request, {
                   headers: {
                     'Content-Type': 'application/json'
                   },
                   timeout: 0 // No timeout for background job processing
+                });
+              } catch (error) {
+                if (error.response && error.response.status === 404) {
+                  // Try the root endpoint
+                  response = await axios.post(config.url, request, {
+                    headers: {
+                      'Content-Type': 'application/json'
+                    },
+                    timeout: 0 // No timeout for background job processing
+                  });
+                } else {
+                  throw error;
+                }
+              }
+              
+              return response.data;
+            } catch (error) {
+              console.error(`Error sending request to SSE server ${serverId}:`, error.message);
+              throw error;
+            }
+          }
+        };
+        
+        // Store the server
+        serverProcesses.set(serverId, sseServer);
+        serverInitializationState.set(serverId, 'starting');
+        
+                 // Setup heartbeat to keep connection alive
+         const heartbeatIntervalId = setInterval(() => {
+          if (eventSource.readyState === EventSource.OPEN) {
+            console.log(`[${serverId}] SSE heartbeat - connection alive`);
+                     } else if (eventSource.readyState === EventSource.CLOSED) {
+             console.warn(`[${serverId}] SSE connection closed, attempting reconnection...`);
+             clearInterval(heartbeatIntervalId);
+            
+            // Attempt reconnection if not already initialized
+            if (!initialized && retryCount < maxRetries) {
+              retryCount++;
+              console.log(`[${serverId}] Retrying SSE connection (${retryCount}/${maxRetries}) in ${retryDelay}ms...`);
+              setTimeout(() => attemptConnection(), retryDelay);
+            }
+          }
+                          }, heartbeatInterval); // Check at configurable interval
+         
+         // Store the interval ID in the server object for cleanup
+         sseServer.heartbeatInterval = heartbeatIntervalId;
+         
+         eventSource.onopen = () => {
+          console.log(`SSE connection opened for ${serverId}`);
+          retryCount = 0; // Reset retry count on successful connection
+        };
+        
+        eventSource.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            console.log(`[${serverId}] SSE message:`, data);
+            
+            if (data.id && responseHandlers.has(data.id)) {
+              const handler = responseHandlers.get(data.id);
+              handler(data);
+              responseHandlers.delete(data.id);
+            }
+          } catch (error) {
+            console.error(`Error parsing SSE message from ${serverId}:`, error);
+          }
+        };
+        
+                 eventSource.onerror = (error) => {
+           console.error(`SSE error for ${serverId}:`, error);
+           
+           // Clear heartbeat interval
+           if (heartbeatIntervalId) {
+             clearInterval(heartbeatIntervalId);
+           }
+          
+          // Handle different error scenarios
+          if (error.type === 'error' && error.message && error.message.includes('Body Timeout Error')) {
+            console.warn(`[${serverId}] Body timeout detected - this is often due to server-side connection limits`);
+            
+            // Close the current connection
+            eventSource.close();
+            
+            // Attempt reconnection if not initialized and retries available
+            if (!initialized && retryCount < maxRetries) {
+              retryCount++;
+              console.log(`[${serverId}] Attempting SSE reconnection (${retryCount}/${maxRetries}) in ${retryDelay}ms...`);
+              setTimeout(() => attemptConnection(), retryDelay);
+              return;
+            }
+          }
+          
+          if (!initialized) {
+            reject(new Error(`Failed to connect to SSE server at ${config.url}: ${error.message || 'Connection failed'}`));
+          }
+        };
+        
+        // Test the connection by sending an initialize request
+        setTimeout(async () => {
+          try {
+            const initRequest = {
+              jsonrpc: "2.0",
+              id: 1,
+              method: "initialize",
+              params: {
+                protocolVersion: "2024-11-05",
+                capabilities: {
+                  roots: {
+                    listChanged: true
+                  },
+                  sampling: {}
+                },
+                clientInfo: {
+                  name: "mcp-bridge",
+                  version: "1.0.0"
+                }
+              }
+            };
+            
+            let response;
+            try {
+              response = await axios.post(`${config.url}/mcp`, initRequest, {
+                headers: {
+                  'Content-Type': 'application/json'
+                }
+              });
+            } catch (error) {
+              if (error.response && error.response.status === 404) {
+                // Try the root endpoint
+                response = await axios.post(config.url, initRequest, {
+                  headers: {
+                    'Content-Type': 'application/json'
+                  }
                 });
               } else {
                 throw error;
               }
             }
             
-            return response.data;
-          } catch (error) {
-            console.error(`Error sending request to SSE server ${serverId}:`, error.message);
-            throw error;
-          }
-        }
-      };
-      
-      // Store the server
-      serverProcesses.set(serverId, sseServer);
-      serverInitializationState.set(serverId, 'starting');
-      
-      eventSource.onopen = () => {
-        console.log(`SSE connection opened for ${serverId}`);
-      };
-      
-      eventSource.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          console.log(`[${serverId}] SSE message:`, data);
-          
-          if (data.id && responseHandlers.has(data.id)) {
-            const handler = responseHandlers.get(data.id);
-            handler(data);
-            responseHandlers.delete(data.id);
-          }
-        } catch (error) {
-          console.error(`Error parsing SSE message from ${serverId}:`, error);
-        }
-      };
-      
-      eventSource.onerror = (error) => {
-        console.error(`SSE error for ${serverId}:`, error);
-        if (!initialized) {
-          reject(new Error(`Failed to connect to SSE server at ${config.url}`));
-        }
-      };
-      
-      // Test the connection by sending an initialize request
-      setTimeout(async () => {
-        try {
-          const initRequest = {
-            jsonrpc: "2.0",
-            id: 1,
-            method: "initialize",
-            params: {
-              protocolVersion: "2024-11-05",
-              capabilities: {
-                roots: {
-                  listChanged: true
-                },
-                sampling: {}
-              },
-              clientInfo: {
-                name: "mcp-bridge",
-                version: "1.0.0"
-              }
-            }
-          };
-          
-          let response;
-          try {
-            response = await axios.post(`${config.url}/mcp`, initRequest, {
-              headers: {
-                'Content-Type': 'application/json'
-              }
-            });
-          } catch (error) {
-            if (error.response && error.response.status === 404) {
-              // Try the root endpoint
-              response = await axios.post(config.url, initRequest, {
-                headers: {
-                  'Content-Type': 'application/json'
-                }
-              });
+            if (response.data && response.data.result) {
+              console.log(`SSE server ${serverId} initialized successfully`);
+              serverInitializationState.set(serverId, 'initialized');
+              initialized = true;
+              resolve(sseServer);
             } else {
-              throw error;
+              throw new Error('Invalid initialization response');
+            }
+          } catch (error) {
+            console.error(`Failed to initialize SSE server ${serverId}:`, error.message);
+            if (!initialized) {
+              // Try reconnection if retries available
+              if (retryCount < maxRetries) {
+                retryCount++;
+                console.log(`[${serverId}] Initialization failed, retrying (${retryCount}/${maxRetries}) in ${retryDelay}ms...`);
+                setTimeout(() => attemptConnection(), retryDelay);
+              } else {
+                reject(error);
+              }
             }
           }
-          
-          if (response.data && response.data.result) {
-            console.log(`SSE server ${serverId} initialized successfully`);
-            serverInitializationState.set(serverId, 'initialized');
-            initialized = true;
-            resolve(sseServer);
-          } else {
-            throw new Error('Invalid initialization response');
-          }
-        } catch (error) {
-          console.error(`Failed to initialize SSE server ${serverId}:`, error.message);
-          if (!initialized) {
-            reject(error);
-          }
+        }, 2000); // Wait 2 seconds for SSE connection to stabilize
+        
+      } catch (error) {
+        console.error(`Error starting SSE server ${serverId}:`, error);
+        if (retryCount < maxRetries) {
+          retryCount++;
+          console.log(`[${serverId}] Connection attempt failed, retrying (${retryCount}/${maxRetries}) in ${retryDelay}ms...`);
+          setTimeout(() => attemptConnection(), retryDelay);
+        } else {
+          reject(error);
         }
-      }, 1000); // Wait a second for SSE connection to stabilize
-      
-    } catch (error) {
-      console.error(`Error starting SSE server ${serverId}:`, error);
-      reject(error);
+      }
     }
+    
+    // Start the initial connection attempt
+    attemptConnection();
   });
 }
 
@@ -761,10 +865,15 @@ async function shutdownServer(serverId) {
     // Handle SSE servers differently
     else if (serverInfo.type === 'sse') {
       try {
-        console.log(`Closing SSE connection for ${serverId}`);
-        if (serverInfo.eventSource) {
-          serverInfo.eventSource.close();
-        }
+            if (serverInfo.eventSource) {
+      console.log(`Closing SSE connection for ${serverId}`);
+      serverInfo.eventSource.close();
+    
+    // Clear any heartbeat intervals
+    if (serverInfo.heartbeatInterval) {
+      clearInterval(serverInfo.heartbeatInterval);
+    }
+  }
       } catch (error) {
         console.error(`Error closing SSE connection for ${serverId}: ${error.message}`);
       }
@@ -1139,7 +1248,13 @@ async function sendSSEMCPRequest(serverUrl, authToken, request, method, params) 
         headers,
         responseType: 'stream',
         timeout: 0,
-        cancelToken: axiosSource.token
+        cancelToken: axiosSource.token,
+        // Add connection management options
+        maxRedirects: 5,
+        validateStatus: (status) => status < 500, // Accept 4xx responses
+        // Use existing configured agents for connection reuse
+        httpAgent: httpAgent,
+        httpsAgent: httpsAgent
       })
       .then((_sseResponse) => {
         sseResponse = _sseResponse;
@@ -1180,37 +1295,50 @@ async function sendSSEMCPRequest(serverUrl, authToken, request, method, params) 
             const data = line.replace(/^data:\s*/, '').trim();
             if (!data) continue;
             console.log(`[SSE-DEBUG] SSE data event: ${data}`);
-            if (!sessionEndpoint) {
-              if (data.startsWith('/')) {
-                sessionEndpoint = data;
-                console.log(`[SSE] Session endpoint discovered: ${sessionEndpoint} [${request.id}]`);
-                clearTimeout(sessionTimeout);
-                sendRequest();
-                return;
-              }
-              if (data.startsWith('{')) {
-                try {
-                  const parsed = JSON.parse(data);
-                  if (parsed.endpoint) {
-                    sessionEndpoint = parsed.endpoint;
-                    console.log(`[SSE] Session endpoint discovered: ${sessionEndpoint} [${request.id}]`);
-                    clearTimeout(sessionTimeout);
-                    sendRequest();
-                    return;
-                  }
-                } catch {}
-              }
-            } else {
+            
+            // First check if this is a direct JSON-RPC response (no session endpoint needed)
+            if (data.startsWith('{')) {
               try {
                 const parsed = JSON.parse(data);
-                if (parsed.id === request.id) {
+                
+                // Check if this is a JSON-RPC response for our request
+                if (parsed.jsonrpc === "2.0" && parsed.id === request.id) {
                   jsonResponse = parsed;
-                  console.log(`[SSE-DEBUG] [${request.id}] Received JSON response on SSE:`, JSON.stringify(parsed, null, 2));
+                  console.log(`[SSE-DEBUG] [${request.id}] Received direct JSON-RPC response:`, JSON.stringify(parsed, null, 2));
+                  clearTimeout(sessionTimeout);
                   finish();
+                  return;
                 }
-              } catch {
-                // Non-JSON – ignore
+                
+                // Check if this is a session endpoint discovery (only if no sessionEndpoint yet)
+                if (!sessionEndpoint && parsed.endpoint) {
+                  sessionEndpoint = parsed.endpoint;
+                  console.log(`[SSE] Session endpoint discovered: ${sessionEndpoint} [${request.id}]`);
+                  clearTimeout(sessionTimeout);
+                  sendRequest();
+                  return;
+                }
+                
+                // If we already have a session endpoint, check if this is the response
+                if (sessionEndpoint && parsed.id === request.id) {
+                  jsonResponse = parsed;
+                  console.log(`[SSE-DEBUG] [${request.id}] Received JSON response via session:`, JSON.stringify(parsed, null, 2));
+                  finish();
+                  return;
+                }
+              } catch (parseError) {
+                console.log(`[SSE-DEBUG] [${request.id}] Failed to parse JSON data:`, parseError.message);
+                // Continue to other parsing attempts
               }
+            }
+            
+            // Check for simple endpoint path (no session needed)
+            if (!sessionEndpoint && data.startsWith('/')) {
+              sessionEndpoint = data;
+              console.log(`[SSE] Session endpoint discovered: ${sessionEndpoint} [${request.id}]`);
+              clearTimeout(sessionTimeout);
+              sendRequest();
+              return;
             }
           }
         }
@@ -1720,15 +1848,55 @@ app.get('/servers/:serverId/tools', async (req, res) => {
       });
     }
     const serverInfo = serverProcesses.get(serverId);
-    // Use dynamic logic for SSE servers
-    if (serverInfo.type === 'sse' && serverInfo.config && serverInfo.config.url) {
-      // Always use /sse endpoint for dynamic requests
-      const sseUrl = serverInfo.config.url.endsWith('/sse') ? serverInfo.config.url : serverInfo.config.url + '/sse';
-      const result = await sendDynamicMCPRequest(sseUrl, null, 'tools/list', {});
-      res.json(result);
-      return;
+    
+    // Use direct SSE server sendRequest method for better reliability
+    if (serverInfo.type === 'sse' && serverInfo.sendRequest) {
+      try {
+        console.log(`[TOOLS-LIST] Using direct SSE sendRequest for ${serverId}`);
+        const result = await serverInfo.sendRequest('tools/list', {});
+        
+        // Handle different response formats
+        if (result && result.result) {
+          res.json(result.result);
+        } else {
+          res.json(result);
+        }
+        return;
+      } catch (sseError) {
+        console.error(`[TOOLS-LIST] Direct SSE failed for ${serverId}:`, sseError.message);
+        
+        // Fallback to dynamic request
+        try {
+          const sseUrl = serverInfo.config.url.endsWith('/sse') ? serverInfo.config.url : serverInfo.config.url + '/sse';
+          const result = await sendDynamicMCPRequest(sseUrl, null, 'tools/list', {});
+          
+          // Parse and format the response properly
+          if (result && typeof result === 'string' && result.startsWith('data: ')) {
+            // Handle raw SSE response format
+            try {
+              const jsonPart = result.replace(/^data:\s*/, '').trim();
+              const parsed = JSON.parse(jsonPart);
+              if (parsed.result) {
+                res.json(parsed.result);
+              } else {
+                res.json(parsed);
+              }
+            } catch (parseError) {
+              console.error(`Error parsing SSE response for ${serverId}:`, parseError);
+              res.json({ tools: [], error: "Failed to parse server response" });
+            }
+          } else {
+            res.json(result);
+          }
+          return;
+        } catch (fallbackError) {
+          console.error(`[TOOLS-LIST] Both direct and fallback failed for ${serverId}`);
+          throw fallbackError;
+        }
+      }
     }
-    // Default: use standard logic
+    
+    // Default: use standard logic for non-SSE servers
     const result = await sendMCPRequest(serverId, 'tools/list');
     res.json(result);
   } catch (error) {
@@ -1751,15 +1919,60 @@ app.post('/servers/:serverId/tools/:toolName', async (req, res) => {
       });
     }
     const serverInfo = serverProcesses.get(serverId);
-    // Use dynamic logic for SSE servers
-    if (serverInfo.type === 'sse' && serverInfo.config && serverInfo.config.url) {
-      const sseUrl = serverInfo.config.url.endsWith('/sse') ? serverInfo.config.url : serverInfo.config.url + '/sse';
-      const result = await sendDynamicMCPRequest(sseUrl, null, 'tools/call', {
-        name: toolName,
-        arguments
-      });
-      res.json(result);
-      return;
+    
+    // Use direct SSE server sendRequest method for better reliability
+    if (serverInfo.type === 'sse' && serverInfo.sendRequest) {
+      try {
+        console.log(`[TOOL-EXEC] Using direct SSE sendRequest for ${serverId}`);
+        const result = await serverInfo.sendRequest('tools/call', {
+          name: toolName,
+          arguments
+        });
+        
+        // Handle different response formats
+        if (result && result.result) {
+          res.json(result.result);
+        } else if (result && result.content) {
+          res.json(result);
+        } else {
+          res.json(result);
+        }
+        return;
+      } catch (sseError) {
+        console.error(`[TOOL-EXEC] Direct SSE failed for ${serverId}:`, sseError.message);
+        
+        // Fallback to dynamic request
+        try {
+          const sseUrl = serverInfo.config.url.endsWith('/sse') ? serverInfo.config.url : serverInfo.config.url + '/sse';
+          const result = await sendDynamicMCPRequest(sseUrl, null, 'tools/call', {
+            name: toolName,
+            arguments
+          });
+          
+          // Parse and format the response properly
+          if (result && typeof result === 'string' && result.startsWith('data: ')) {
+            // Handle raw SSE response format
+            try {
+              const jsonPart = result.replace(/^data:\s*/, '').trim();
+              const parsed = JSON.parse(jsonPart);
+              if (parsed.result) {
+                res.json(parsed.result);
+              } else {
+                res.json(parsed);
+              }
+            } catch (parseError) {
+              console.error(`Error parsing SSE response for ${serverId}:`, parseError);
+              res.status(500).json({ error: "Failed to parse server response" });
+            }
+          } else {
+            res.json(result);
+          }
+          return;
+        } catch (fallbackError) {
+          console.error(`[TOOL-EXEC] Both direct and fallback failed for ${serverId}`);
+          throw fallbackError;
+        }
+      }
     }
     // Default: use standard logic
     const result = await sendMCPRequest(serverId, 'tools/call', {

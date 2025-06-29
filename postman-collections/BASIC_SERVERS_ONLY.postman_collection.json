@@ -1,0 +1,37 @@
+{
+  "info": {
+    "_postman_id": "debug-servers-only",
+    "name": "DEBUG - Basic Servers Only",
+    "description": "DEBUGGING COLLECTION - Only the most basic /servers endpoint to test Aisera connectivity",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "url",
+      "value": "https://mcp-bridge-api-main.onrender.com",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Get All Servers - BASIC",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{url}}/servers",
+          "host": ["{{url}}"],
+          "path": ["servers"]
+        },
+        "description": "BASIC TEST - Get all MCP servers. This should return JSON with server list."
+      },
+      "response": []
+    }
+  ]
+} 

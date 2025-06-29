@@ -1,0 +1,52 @@
+{
+  "info": {
+    "_postman_id": "e3f4a5b6-7890-12cd-ef34-567890abcdef",
+    "name": "MCP Bridge - GET Servers and Tools",
+    "description": "Retrieve a list of all available MCP servers on the MCP Bridge platform, and get all available tools for any specific MCP server. Use this to discover all connected MCP servers and explore the functions, actions, or operations supported by each server for further execution or integration.",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "url",
+      "value": "https://mcp-bridge-api-main.onrender.com",
+      "type": "string"
+    },
+    {
+      "key": "server-id",
+      "value": "math-server",
+      "type": "string",
+      "description": "The ID of the MCP server to query for tools"
+    }
+  ],
+  "item": [
+    {
+      "name": "Get All Servers",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{url}}/servers",
+          "host": ["{{url}}"],
+          "path": ["servers"]
+        },
+        "description": "Get a list of all available MCP servers on the platform.\n\nReturns an array of server objects with id, status, and metadata.\n\nExample response:\n{\n  \"servers\": [ {\"id\": \"math-server\", ...}, {\"id\": \"matallo-server\", ...}, ... ]\n}"
+      },
+      "response": []
+    },
+    {
+      "name": "Get All Tools for Server",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{url}}/servers/{{server-id}}/tools",
+          "host": ["{{url}}"],
+          "path": ["servers", "{{server-id}}", "tools"]
+        },
+        "description": "Get a list of all available tools for the specified MCP server.\n\nPath Variable:\n- server-id (string, required): The ID of the MCP server (e.g., math-server, matallo-server, idosalomon-server).\n\nReturns an array of tool objects with name, description, and inputSchema.\n\nExample response:\n{\n  \"tools\": [\n    {\n      \"name\": \"multiply\",\n      \"description\": \"Multiply two numbers\",\n      \"inputSchema\": { ... }\n    },\n    ...\n  ]\n}"
+      },
+      "response": []
+    }
+  ]
+}
