@@ -406,13 +406,18 @@ async function startSSEServer(serverId, config) {
         serverInitializationState.set(serverId, 'starting');
         
                  // Setup heartbeat to keep connection alive
-         const heartbeatIntervalId = setInterval(() => {
+        // Enforce a minimum heartbeat interval of 5000ms to prevent log spam and server overload
+        let effectiveHeartbeatInterval = heartbeatInterval;
+        if (heartbeatInterval < 5000) {
+          console.warn(`[${serverId}] WARNING: heartbeatInterval (${heartbeatInterval}ms) is too low. Using minimum 5000ms to prevent log spam and server overload.`);
+          effectiveHeartbeatInterval = 5000;
+        }
+        const heartbeatIntervalId = setInterval(() => {
           if (eventSource.readyState === EventSource.OPEN) {
             console.log(`[${serverId}] SSE heartbeat - connection alive`);
-                     } else if (eventSource.readyState === EventSource.CLOSED) {
-             console.warn(`[${serverId}] SSE connection closed, attempting reconnection...`);
-             clearInterval(heartbeatIntervalId);
-            
+          } else if (eventSource.readyState === EventSource.CLOSED) {
+            console.warn(`[${serverId}] SSE connection closed, attempting reconnection...`);
+            clearInterval(heartbeatIntervalId);
             // Attempt reconnection if not already initialized
             if (!initialized && retryCount < maxRetries) {
               retryCount++;
@@ -420,7 +425,7 @@ async function startSSEServer(serverId, config) {
               setTimeout(() => attemptConnection(), retryDelay);
             }
           }
-                          }, heartbeatInterval); // Check at configurable interval
+        }, effectiveHeartbeatInterval); // Check at (possibly adjusted) interval
          
          // Store the interval ID in the server object for cleanup
          sseServer.heartbeatInterval = heartbeatIntervalId;
