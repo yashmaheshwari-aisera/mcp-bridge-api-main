@@ -316,97 +316,89 @@ async function startHTTPServer(serverId, config) {
 // Start an SSE-based MCP server
 async function startSSEServer(serverId, config) {
   console.log(`Starting SSE MCP server: ${serverId} at ${config.url}`);
-  
   const riskLevel = config.riskLevel || 1; // Default to low risk for SSE servers
-  
-      return new Promise((resolve, reject) => {
-      let retryCount = 0;
-      const maxRetries = config.sse?.maxRetries || 3;
-      const retryDelay = config.sse?.retryDelay || 5000; // 5 seconds
-      const heartbeatInterval = config.sse?.heartbeatInterval || 15000; // 15 seconds
-      const heartbeatTimeout = config.sse?.heartbeatTimeout || 30000; // 30 seconds
-    
-    function attemptConnection() {
+
+  return new Promise((resolve, reject) => {
+    let retryCount = 0;
+    const maxRetries = config.sse?.maxRetries || 3;
+    const retryDelay = config.sse?.retryDelay || 5000; // 5 seconds
+    const heartbeatInterval = config.sse?.heartbeatInterval || 15000; // 15 seconds
+    const heartbeatTimeout = config.sse?.heartbeatTimeout || 30000; // 30 seconds
+
+    // Create or reuse the persistent sseServer object
+    let sseServer = serverProcesses.get(serverId);
+    if (!sseServer) {
+      sseServer = {
+        eventSource: null,
+        riskLevel,
+        pid: 'sse-' + Date.now(),
+        config,
+        type: 'sse',
+        url: config.url,
+        messageQueue: [],
+        responseHandlers: new Map(),
+        retryCount,
+        heartbeatInterval: null,
+        _connecting: false,
+        sendRequest: async (method, params = {}) => {
+          const requestId = uuidv4();
+          const request = {
+            jsonrpc: "2.0",
+            id: requestId,
+            method: method,
+            params: params
+          };
+          try {
+            let response;
+            try {
+              response = await axios.post(`${config.url}/mcp`, request, {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 0
+              });
+            } catch (error) {
+              if (error.response && error.response.status === 404) {
+                response = await axios.post(config.url, request, {
+                  headers: { 'Content-Type': 'application/json' },
+                  timeout: 0
+                });
+              } else {
+                throw error;
+              }
+            }
+            return response.data;
+          } catch (error) {
+            console.error(`Error sending request to SSE server ${serverId}:`, error.message);
+            throw error;
+          }
+        }
+      };
+      serverProcesses.set(serverId, sseServer);
+    }
+    serverInitializationState.set(serverId, 'starting');
+
+    async function attemptConnection() {
+      if (sseServer._connecting) {
+        console.warn(`[${serverId}] Connection attempt already in progress, skipping.`);
+        return;
+      }
+      sseServer._connecting = true;
       try {
-        // Create EventSource connection with custom headers
         const eventSourceOptions = {
           headers: {
             'Cache-Control': 'no-cache',
             'Accept': 'text/event-stream',
             'Connection': 'keep-alive'
           },
-                     heartbeatTimeout: heartbeatTimeout, // configurable heartbeat timeout
+          heartbeatTimeout: heartbeatTimeout,
           withCredentials: false
         };
-        
         const eventSource = new EventSource(`${config.url}/sse`, eventSourceOptions);
-        
+        sseServer.eventSource = eventSource;
         let initialized = false;
-        const messageQueue = [];
-        let responseHandlers = new Map();
-        let heartbeatInterval;
-        
-                 // Store the SSE connection with server info
-         const sseServer = {
-           eventSource,
-           riskLevel,
-           pid: 'sse-' + Date.now(), // Fake PID for SSE connections
-           config,
-           type: 'sse',
-           url: config.url,
-           messageQueue,
-           responseHandlers,
-           retryCount,
-           heartbeatInterval: null, // Will be set when interval is created
-          
-          // Method to send requests to SSE server
-          sendRequest: async (method, params = {}) => {
-            const requestId = uuidv4();
-            const request = {
-              jsonrpc: "2.0",
-              id: requestId,
-              method: method,
-              params: params
-            };
-            
-            try {
-              // Send request via HTTP POST to the server (try both endpoints)
-              let response;
-              try {
-                response = await axios.post(`${config.url}/mcp`, request, {
-                  headers: {
-                    'Content-Type': 'application/json'
-                  },
-                  timeout: 0 // No timeout for background job processing
-                });
-              } catch (error) {
-                if (error.response && error.response.status === 404) {
-                  // Try the root endpoint
-                  response = await axios.post(config.url, request, {
-                    headers: {
-                      'Content-Type': 'application/json'
-                    },
-                    timeout: 0 // No timeout for background job processing
-                  });
-                } else {
-                  throw error;
-                }
-              }
-              
-              return response.data;
-            } catch (error) {
-              console.error(`Error sending request to SSE server ${serverId}:`, error.message);
-              throw error;
-            }
-          }
-        };
-        
-        // Store the server
-        serverProcesses.set(serverId, sseServer);
-        serverInitializationState.set(serverId, 'starting');
-        
-                 // Setup heartbeat to keep connection alive
-        // Enforce a minimum heartbeat interval of 5000ms to prevent log spam and server overload
+        // Clear any existing heartbeat interval before starting a new one
+        if (sseServer.heartbeatInterval) {
+          clearInterval(sseServer.heartbeatInterval);
+        }
         let effectiveHeartbeatInterval = heartbeatInterval;
         if (heartbeatInterval < 5000) {
           console.warn(`[${serverId}] WARNING: heartbeatInterval (${heartbeatInterval}ms) is too low. Using minimum 5000ms to prevent log spam and server overload.`);
@@ -414,72 +406,65 @@ async function startSSEServer(serverId, config) {
         }
         const heartbeatIntervalId = setInterval(() => {
           if (eventSource.readyState === EventSource.OPEN) {
-            console.log(`[${serverId}] SSE heartbeat - connection alive`);
+            if (process.env.DEBUG || process.env.VERBOSE) {
+              console.log(`[${serverId}] SSE heartbeat - connection alive (intervalId: ${heartbeatIntervalId})`);
+            }
           } else if (eventSource.readyState === EventSource.CLOSED) {
             console.warn(`[${serverId}] SSE connection closed, attempting reconnection...`);
             clearInterval(heartbeatIntervalId);
-            // Attempt reconnection if not already initialized
             if (!initialized && retryCount < maxRetries) {
               retryCount++;
+              sseServer.retryCount = retryCount;
               console.log(`[${serverId}] Retrying SSE connection (${retryCount}/${maxRetries}) in ${retryDelay}ms...`);
               setTimeout(() => attemptConnection(), retryDelay);
             }
           }
-        }, effectiveHeartbeatInterval); // Check at (possibly adjusted) interval
-         
-         // Store the interval ID in the server object for cleanup
-         sseServer.heartbeatInterval = heartbeatIntervalId;
-         
-         eventSource.onopen = () => {
+        }, effectiveHeartbeatInterval);
+        sseServer.heartbeatInterval = heartbeatIntervalId;
+
+        eventSource.onopen = () => {
           console.log(`SSE connection opened for ${serverId}`);
-          retryCount = 0; // Reset retry count on successful connection
+          retryCount = 0;
+          sseServer.retryCount = 0;
+          sseServer._connecting = false;
         };
-        
+
         eventSource.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
             console.log(`[${serverId}] SSE message:`, data);
-            
-            if (data.id && responseHandlers.has(data.id)) {
-              const handler = responseHandlers.get(data.id);
+            if (data.id && sseServer.responseHandlers.has(data.id)) {
+              const handler = sseServer.responseHandlers.get(data.id);
               handler(data);
-              responseHandlers.delete(data.id);
+              sseServer.responseHandlers.delete(data.id);
             }
           } catch (error) {
             console.error(`Error parsing SSE message from ${serverId}:`, error);
           }
         };
-        
-                 eventSource.onerror = (error) => {
-           console.error(`SSE error for ${serverId}:`, error);
-           
-           // Clear heartbeat interval
-           if (heartbeatIntervalId) {
-             clearInterval(heartbeatIntervalId);
-           }
-          
-          // Handle different error scenarios
+
+        eventSource.onerror = (error) => {
+          console.error(`SSE error for ${serverId}:`, error);
+          if (heartbeatIntervalId) {
+            clearInterval(heartbeatIntervalId);
+          }
+          sseServer._connecting = false;
           if (error.type === 'error' && error.message && error.message.includes('Body Timeout Error')) {
             console.warn(`[${serverId}] Body timeout detected - this is often due to server-side connection limits`);
-            
-            // Close the current connection
             eventSource.close();
-            
-            // Attempt reconnection if not initialized and retries available
             if (!initialized && retryCount < maxRetries) {
               retryCount++;
+              sseServer.retryCount = retryCount;
               console.log(`[${serverId}] Attempting SSE reconnection (${retryCount}/${maxRetries}) in ${retryDelay}ms...`);
               setTimeout(() => attemptConnection(), retryDelay);
               return;
             }
           }
-          
           if (!initialized) {
             reject(new Error(`Failed to connect to SSE server at ${config.url}: ${error.message || 'Connection failed'}`));
           }
         };
-        
-        // Test the connection by sending an initialize request
+
         setTimeout(async () => {
           try {
             const initRequest = {
@@ -489,9 +474,7 @@ async function startSSEServer(serverId, config) {
               params: {
                 protocolVersion: "2024-11-05",
                 capabilities: {
-                  roots: {
-                    listChanged: true
-                  },
+                  roots: { listChanged: true },
                   sampling: {}
                 },
                 clientInfo: {
@@ -500,27 +483,20 @@ async function startSSEServer(serverId, config) {
                 }
               }
             };
-            
             let response;
             try {
               response = await axios.post(`${config.url}/mcp`, initRequest, {
-                headers: {
-                  'Content-Type': 'application/json'
-                }
+                headers: { 'Content-Type': 'application/json' }
               });
             } catch (error) {
               if (error.response && error.response.status === 404) {
-                // Try the root endpoint
                 response = await axios.post(config.url, initRequest, {
-                  headers: {
-                    'Content-Type': 'application/json'
-                  }
+                  headers: { 'Content-Type': 'application/json' }
                 });
               } else {
                 throw error;
               }
             }
-            
             if (response.data && response.data.result) {
               console.log(`SSE server ${serverId} initialized successfully`);
               serverInitializationState.set(serverId, 'initialized');
@@ -532,9 +508,9 @@ async function startSSEServer(serverId, config) {
           } catch (error) {
             console.error(`Failed to initialize SSE server ${serverId}:`, error.message);
             if (!initialized) {
-              // Try reconnection if retries available
               if (retryCount < maxRetries) {
                 retryCount++;
+                sseServer.retryCount = retryCount;
                 console.log(`[${serverId}] Initialization failed, retrying (${retryCount}/${maxRetries}) in ${retryDelay}ms...`);
                 setTimeout(() => attemptConnection(), retryDelay);
               } else {
@@ -542,12 +518,13 @@ async function startSSEServer(serverId, config) {
               }
             }
           }
-        }, 2000); // Wait 2 seconds for SSE connection to stabilize
-        
+        }, 2000);
       } catch (error) {
+        sseServer._connecting = false;
         console.error(`Error starting SSE server ${serverId}:`, error);
         if (retryCount < maxRetries) {
           retryCount++;
+          sseServer.retryCount = retryCount;
           console.log(`[${serverId}] Connection attempt failed, retrying (${retryCount}/${maxRetries}) in ${retryDelay}ms...`);
           setTimeout(() => attemptConnection(), retryDelay);
         } else {
@@ -555,7 +532,6 @@ async function startSSEServer(serverId, config) {
         }
       }
     }
-    
     // Start the initial connection attempt
     attemptConnection();
   });

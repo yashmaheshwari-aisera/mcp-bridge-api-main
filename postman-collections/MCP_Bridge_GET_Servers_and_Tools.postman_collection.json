@@ -1,8 +1,8 @@
 {
   "info": {
-    "_postman_id": "e3f4a5b6-7890-12cd-ef34-567890abcdef",
-    "name": "MCP Bridge - GET Servers and Tools",
-    "description": "Retrieve a list of all available MCP servers on the MCP Bridge platform, and get all available tools for any specific MCP server. Use this to discover all connected MCP servers and explore the functions, actions, or operations supported by each server for further execution or integration.",
+    "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "Aisera MCP Bridge - Server & Tool Discovery",
+    "description": "Collection to discover all available MCP servers and their tools via the MCP Bridge API. Use this to list all servers and enumerate the tools available on each server.",
     "version": "1.0.0",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
