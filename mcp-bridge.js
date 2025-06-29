@@ -77,6 +77,30 @@ const serverProcesses = new Map(); // Map of server IDs to processes
 const pendingConfirmations = new Map(); // Map of request IDs to pending confirmations
 const serverInitializationState = new Map(); // Track initialization state of servers
 
+// Persistent config helpers
+const configPath = process.env.MCP_CONFIG_PATH || path.join(process.cwd(), 'mcp_config.json');
+function readFullConfig() {
+  try {
+    if (fs.existsSync(configPath)) {
+      const raw = fs.readFileSync(configPath, 'utf8');
+      return JSON.parse(raw);
+    }
+    return { mcpServers: {} };
+  } catch (e) {
+    console.error('Error reading mcp_config.json:', e);
+    throw new Error('Failed to read config file');
+  }
+}
+function writeFullConfig(configObj) {
+  try {
+    const json = JSON.stringify(configObj, null, 2);
+    fs.writeFileSync(configPath, json, 'utf8');
+  } catch (e) {
+    console.error('Error writing mcp_config.json:', e);
+    throw new Error('Failed to write config file');
+  }
+}
+
 // Helper function to substitute environment variables in strings
 function substituteEnvVars(text) {
   if (typeof text !== 'string') return text;
@@ -1270,84 +1294,76 @@ app.get('/servers', (req, res) => {
 app.post('/servers', async (req, res) => {
   console.log('POST /servers', req.body);
   try {
-    const { id, command, args, env, riskLevel, docker } = req.body;
-    
-    if (!id || !command) {
-      console.log('Missing required fields');
-      return res.status(400).json({
-        error: "Server ID and command are required"
-      });
+    const { id, command, args, env, riskLevel, docker, type, url, description } = req.body;
+    if (!id) {
+      return res.status(400).json({ error: "Server ID is required" });
     }
-    
     if (serverProcesses.has(id)) {
-      console.log(`Server with ID '${id}' already exists`);
-      return res.status(409).json({
-        error: `Server with ID '${id}' already exists`
-      });
+      return res.status(409).json({ error: `Server with ID '${id}' already exists` });
     }
-    
     // Validate risk level if provided
     if (riskLevel !== undefined) {
       if (![RISK_LEVEL.LOW, RISK_LEVEL.MEDIUM, RISK_LEVEL.HIGH].includes(riskLevel)) {
-        return res.status(400).json({
-          error: `Invalid risk level: ${riskLevel}. Valid values are: ${RISK_LEVEL.LOW} (low), ${RISK_LEVEL.MEDIUM} (medium), ${RISK_LEVEL.HIGH} (high)`
-        });
+        return res.status(400).json({ error: `Invalid risk level: ${riskLevel}. Valid values are: ${RISK_LEVEL.LOW} (low), ${RISK_LEVEL.MEDIUM} (medium), ${RISK_LEVEL.HIGH} (high)` });
       }
-      
-      // For high risk level, docker config is required
       if (riskLevel === RISK_LEVEL.HIGH && (!docker || !docker.image)) {
-        return res.status(400).json({
-          error: "Docker configuration with 'image' property is required for high risk level servers"
-        });
+        return res.status(400).json({ error: "Docker configuration with 'image' property is required for high risk level servers" });
       }
     }
-    
-    // Create the configuration object - only include riskLevel if explicitly set
-    const config = { 
-      command, 
-      args: args || [], 
-      env: env || {}
-    };
-    
-    // Only add risk level if explicitly provided
+    // Allow SSE servers (type/url) or stdio servers (command)
+    let config = { args: args || [], env: env || {} };
+    if (command) config.command = command;
+    if (type) config.type = type;
+    if (url) config.url = url;
+    if (riskLevel !== undefined) config.riskLevel = riskLevel;
+    if (docker) config.docker = docker;
+    if (description) config.description = description;
+    // Try to start the server in memory if possible
+    let started = false;
+    if (command) {
+      try {
+        await startServer(id, config);
+        started = true;
+      } catch (e) {
+        console.warn(`Warning: Could not start server process for '${id}': ${e.message}`);
+      }
+    } else if (type === 'sse' && url) {
+      // Register SSE server in memory (simulate startServer for SSE)
+      try {
+        await startServer(id, config);
+        started = true;
+      } catch (e) {
+        console.warn(`Warning: Could not register SSE server for '${id}': ${e.message}`);
+      }
+    }
+    // Always persist to mcp_config.json if config is valid
+    let fullConfig;
+    try {
+      fullConfig = readFullConfig();
+      if (!fullConfig.mcpServers) fullConfig.mcpServers = {};
+      fullConfig.mcpServers[id] = config;
+      writeFullConfig(fullConfig);
+    } catch (e) {
+      // Rollback in-memory addition if started
+      if (started) await shutdownServer(id);
+      return res.status(500).json({ error: 'Failed to persist server config: ' + e.message });
+    }
+    // Prepare response
+    let response = { id, status: started ? "connected" : "persisted", config };
+    if (started && serverProcesses.get(id) && serverProcesses.get(id).pid) {
+      response.pid = serverProcesses.get(id).pid;
+    }
     if (riskLevel !== undefined) {
-      config.riskLevel = riskLevel;
-      
-      // Add docker config if provided for high risk levels
-      if (riskLevel === RISK_LEVEL.HIGH && docker) {
-        config.docker = docker;
-      }
-    }
-    
-    console.log(`Starting server '${id}' with config:`, config);
-    await startServer(id, config);
-    
-    const serverInfo = serverProcesses.get(id);
-    console.log(`Server '${id}' started successfully`);
-    
-    // Create response object
-    const response = {
-      id,
-      status: "connected",
-      pid: serverInfo.pid
-    };
-    
-    // Only include risk level information if explicitly set
-    if (serverInfo.riskLevel !== undefined) {
-      response.risk_level = serverInfo.riskLevel;
-      response.risk_description = RISK_LEVEL_DESCRIPTION[serverInfo.riskLevel];
-      
-      if (serverInfo.riskLevel === RISK_LEVEL.HIGH) {
+      response.risk_level = riskLevel;
+      response.risk_description = RISK_LEVEL_DESCRIPTION[riskLevel];
+      if (riskLevel === RISK_LEVEL.HIGH) {
         response.running_in_docker = true;
       }
     }
-    
-    res.status(201).json(response);
+    res.status(started ? 201 : 202).json(response);
   } catch (error) {
     console.error(`Error starting server: ${error.message}`);
-    res.status(500).json({
-      error: error.message
-    });
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -1355,26 +1371,36 @@ app.post('/servers', async (req, res) => {
 app.delete('/servers/:serverId', async (req, res) => {
   const { serverId } = req.params;
   console.log(`DELETE /servers/${serverId}`);
-  
-  if (!serverProcesses.has(serverId)) {
-    console.log(`Server '${serverId}' not found`);
-    return res.status(404).json({
-      error: `Server '${serverId}' not found`
-    });
+  let stopped = false;
+  if (serverProcesses.has(serverId)) {
+    try {
+      await shutdownServer(serverId);
+      stopped = true;
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
   }
-  
+  // Remove from mcp_config.json if present
+  let fullConfig;
+  let existedInConfig = false;
   try {
-    console.log(`Shutting down server '${serverId}'`);
-    await shutdownServer(serverId);
-    console.log(`Server '${serverId}' shutdown complete`);
-    res.json({
-      status: "disconnected"
-    });
-  } catch (error) {
-    console.error(`Error stopping server ${serverId}: ${error.message}`);
-    res.status(500).json({
-      error: error.message
-    });
+    fullConfig = readFullConfig();
+    if (fullConfig.mcpServers && fullConfig.mcpServers[serverId]) {
+      delete fullConfig.mcpServers[serverId];
+      writeFullConfig(fullConfig);
+      existedInConfig = true;
+    }
+  } catch (e) {
+    // Rollback: try to restart the server (best effort)
+    if (stopped) {
+      // (Optional: could also log a warning and return error)
+      return res.status(500).json({ error: 'Failed to update config file: ' + e.message });
+    }
+  }
+  if (stopped || existedInConfig) {
+    res.json({ status: "disconnected" });
+  } else {
+    res.status(404).json({ error: `Server '${serverId}' not found` });
   }
 });
 

@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "name": "Aisera MCP Bridge - Server & Tool Discovery",
-    "description": "Collection to discover all available MCP servers and their tools via the MCP Bridge API. Use this to list all servers and enumerate the tools available on each server.",
+    "description": "Collection to discover all available MCP servers and their tools via the MCP Bridge API. Use this to list all servers, enumerate the tools available on each server, and execute tools with parameters.",
     "version": "1.0.0",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
@@ -17,6 +17,12 @@
       "value": "math-server",
       "type": "string",
       "description": "The ID of the MCP server to query for tools"
+    },
+    {
+      "key": "tool-name",
+      "value": "subtract",
+      "type": "string",
+      "description": "The name of the tool to execute (e.g., subtract, get_name, nudge_team_member)"
     }
   ],
   "item": [
@@ -45,6 +51,35 @@
           "path": ["servers", "{{server-id}}", "tools"]
         },
         "description": "Get a list of all available tools for the specified MCP server.\n\nPath Variable:\n- server-id (string, required): The ID of the MCP server (e.g., math-server, matallo-server, idosalomon-server).\n\nReturns an array of tool objects with name, description, and inputSchema.\n\nExample response:\n{\n  \"tools\": [\n    {\n      \"name\": \"multiply\",\n      \"description\": \"Multiply two numbers\",\n      \"inputSchema\": { ... }\n    },\n    ...\n  ]\n}"
+      },
+      "response": []
+    },
+    {
+      "name": "Execute Tool for Server",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"a\": 10,\n  \"b\": 3\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{url}}/servers/{{server-id}}/tools/{{tool-name}}",
+          "host": ["{{url}}"],
+          "path": ["servers", "{{server-id}}", "tools", "{{tool-name}}"]
+        },
+        "description": "Execute a specific tool on the specified MCP server with the provided parameters.\n\nPath Variables:\n- server-id (string, required): The ID of the MCP server (e.g., math-server, matallo-server, idosalomon-server)\n- tool-name (string, required): The name of the tool to execute (e.g., subtract, multiply, get_name, nudge_team_member)\n\nRequest Body:\nJSON object containing the parameters required by the tool. The structure depends on the tool's inputSchema.\n\nExample requests:\n\nMath Server (subtract):\n{\n  \"a\": 10,\n  \"b\": 3\n}\n\nMatallo Server (get_name):\n{}\n\nIdo Salomon Server (nudge_team_member):\n{\n  \"name\": \"Alice\"\n}\n\nExample response:\n{\n  \"result\": {\n    \"content\": [\n      {\n        \"type\": \"text\",\n        \"text\": \"{\\n  \\\"result\\\": 7,\\n  \\\"operation\\\": \\\"10 - 3\\\"\\n}\"\n      }\n    ]\n  }\n}"
       },
       "response": []
     }

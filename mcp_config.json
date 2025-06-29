@@ -6,17 +6,19 @@
       "riskLevel": 1,
       "description": "Low risk test server (Yashmahe Proxy)"
     },
-    "matallo-server": {
-      "type": "sse",
-      "url": "https://mcp-server.matallo.workers.dev/sse",
-      "riskLevel": 1,
-      "description": "Low risk test server (Matallo)"
-    },
     "idosalomon-server": {
       "type": "sse",
       "url": "https://remote-mcp-server-authless.idosalomon.workers.dev/sse",
       "riskLevel": 1,
       "description": "Low risk test server (Ido Salomon)"
+    },
+    "matallo-server": {
+      "args": [],
+      "env": {},
+      "type": "sse",
+      "url": "https://mcp-server.matallo.workers.dev/sse",
+      "riskLevel": 1,
+      "description": "Low risk test server (Matallo)"
     }
   }
 }
