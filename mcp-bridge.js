@@ -331,14 +331,21 @@ async function initServers() {
 
 // Start a specific MCP server
 async function startServer(serverId, config) {
-  // Handle HTTP-based servers differently
   if (config.type === 'http') {
     return startHTTPServer(serverId, config);
   }
-  
-  // Handle SSE-based servers differently
   if (config.type === 'sse') {
-    return startSSEServer(serverId, config);
+    // No persistent connection or initialization. Just register the server.
+    const sseServer = {
+      riskLevel: config.riskLevel || 1,
+      pid: 'sse-' + Date.now(),
+      config,
+      type: 'sse',
+      url: config.url
+    };
+    serverProcesses.set(serverId, sseServer);
+    serverInitializationState.set(serverId, 'initialized');
+    return Promise.resolve(sseServer);
   }
   
   console.log(`Starting MCP server process: ${serverId} with command: ${config.command} ${config.args.join(' ')}`);
